@@ -10,9 +10,9 @@ use {
         RenderTarget, DepthTarget,
     },
     gfx_device_gl::{Resources},
-    nalgebra::{Perspective3, Point3, Vector3, Matrix4, UnitQuaternion},
+    nalgebra::{Perspective3, Point3, Vector3},
 
-    lagato::grid::{Voxels},
+    lagato::{camera::{RenderCamera}, grid::{Voxels}},
 };
 
 type ColorFormat = gfx::format::Srgba8;
@@ -210,23 +210,4 @@ fn add_plane_vertices(
 
 fn nvtp(v: Point3<f32>) -> [f32; 4] {
     [v.x, v.y, v.z, 1.0]
-}
-
-pub struct RenderCamera {
-    position: Point3<f32>,
-    rotation: UnitQuaternion<f32>,
-}
-
-impl RenderCamera {
-    pub fn new(position: Point3<f32>, rotation: UnitQuaternion<f32>) -> Self {
-        RenderCamera {
-            position,
-            rotation,
-        }
-    }
-
-    pub fn view_matrix(&self) -> Matrix4<f32> {
-        Matrix4::new_translation(&self.position.coords)
-        * self.rotation.to_homogeneous()
-    }
 }
