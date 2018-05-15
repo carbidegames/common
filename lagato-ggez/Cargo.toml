@@ -1,0 +1,9 @@
+[package]
+name = "lagato-ggez"
+version = "0.1.0"
+authors = ["Layl <LaylConway@users.noreply.github.com>"]
+
+[dependencies]
+ggez = "0.4"
+slog = "2"
+sloggers = "0.2"

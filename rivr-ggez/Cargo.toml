@@ -1,0 +1,9 @@
+[package]
+name = "rivr-ggez"
+version = "0.1.0"
+authors = ["Layl <LaylConway@users.noreply.github.com>"]
+
+[dependencies]
+ggez = "0.4"
+metrohash = "1"
+rivr = { path = "../rivr" }
