@@ -11,7 +11,11 @@ use {
     },
     crc::{crc32},
     byteorder::{WriteBytesExt, LittleEndian, ByteOrder},
+
+    Error,
 };
+
+const HEADER_SIZE: usize = 4;
 
 type WorkerMessage = (SocketAddr, Vec<u8>);
 
@@ -40,8 +44,16 @@ impl Peer {
         }
     }
 
-    pub fn send(&self, target: SocketAddr, data: Vec<u8>) {
+    pub fn send(&self, target: SocketAddr, data: Vec<u8>) -> Result<(), Error> {
+        // It's recommended to limit UDP packets to 512 bytes, and the read side only allocates
+        // that much data in the buffer for receiving. Therefore, prevent any packets that are too
+        // large.
+        if data.len() > 512 - HEADER_SIZE {
+            return Err(Error::DataTooLarge)
+        }
+
         self.outgoing.send((target, data)).unwrap();
+        Ok(())
     }
 
     pub fn try_recv(&self) -> Option<(SocketAddr, Vec<u8>)> {
@@ -74,32 +86,8 @@ fn worker(
         poll.poll(&mut events, None).unwrap();
         for event in events.iter() {
             match event.token() {
-                WRITE => {
-                    if let Some((target, mut data)) = worker_outgoing.try_recv().ok() {
-                        // Append the protocol ID so the receiver can verify its validness
-                        // It's appended at the end because we will know the length anyways, so
-                        // our header doesn't have to be at the start. This way we can avoid having
-                        // to copy data to put the header at the start.
-                        data.write_u32::<LittleEndian>(protocol_id).unwrap();
-
-                        write_socket.send_to(&data, &target).unwrap();
-                    }
-                },
-                READ => {
-                    let mut buffer = vec![0; 512];
-                    let (length, from) = read_socket.recv_from(&mut buffer).unwrap();
-
-                    // If the packet is too small to have our header, just skip it
-                    if length < 4 { continue }
-
-                    // Verify the protocol ID, if it's not right, skip this packet
-                    let client_protocol_id = LittleEndian::read_u32(&buffer[length-4..length]);
-                    if client_protocol_id != protocol_id { continue }
-
-                    // Resize the vector to hide waste data, then send it over
-                    buffer.resize(length-4, 0);
-                    worker_incoming.send((from, buffer.to_vec())).unwrap()
-                }
+                WRITE => write(protocol_id, &write_socket, &worker_outgoing),
+                READ => read(protocol_id, &read_socket, &worker_incoming),
                 _ => unreachable!()
             }
         }
@@ -121,4 +109,35 @@ fn initialize_sockets(mode: PeerMode) -> (UdpSocket, UdpSocket) {
     };
 
     (write_socket, read_socket)
+}
+
+fn write(protocol_id: u32, write_socket: &UdpSocket, worker_outgoing: &Receiver<WorkerMessage>) {
+    if let Some((target, mut data)) = worker_outgoing.try_recv().ok() {
+        // Append the protocol ID so the receiver can verify its validness.
+        // It's appended at the end because we will know the length anyways, so our header doesn't
+        // have to be at the start. This way we can avoid having to copy data to put the header at
+        // the start.
+        data.write_u32::<LittleEndian>(protocol_id).unwrap();
+
+        // This is verified by the send function, but just in case the header changes
+        assert!(data.len() <= 512);
+
+        write_socket.send_to(&data, &target).unwrap();
+    }
+}
+
+fn read(protocol_id: u32, read_socket: &UdpSocket, worker_incoming: &Sender<WorkerMessage>) {
+    let mut buffer = vec![0; 512];
+    let (length, from) = read_socket.recv_from(&mut buffer).unwrap();
+
+    // If the packet is too small to have our header, just skip it
+    if length < 4 { return }
+
+    // Verify the protocol ID, if it's not right, skip this packet
+    let client_protocol_id = LittleEndian::read_u32(&buffer[length-4..length]);
+    if client_protocol_id != protocol_id { return }
+
+    // Resize the vector to hide waste data, then send it over
+    buffer.resize(length-4, 0);
+    worker_incoming.send((from, buffer.to_vec())).unwrap()
 }

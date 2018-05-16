@@ -8,4 +8,7 @@ pub use {
     peer::{Peer, PeerMode},
 };
 
-// Remember, recommended UDP packet size is: 512 bytes
+#[derive(Debug)]
+pub enum Error {
+    DataTooLarge,
+}
