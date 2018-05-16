@@ -14,18 +14,17 @@ use {
 type Data = ([u8; 4], SocketAddr);
 
 pub struct Server {
-    worker_thread: JoinHandle<()>,
+    _worker_thread: JoinHandle<()>,
     receiver: Receiver<Data>,
 }
 
 impl Server {
     pub fn start(bind: SocketAddr) -> Self {
         let (sender, receiver) = mpsc::channel();
-
         let worker_thread = thread::spawn(move || server_worker(bind, sender));
 
         Server {
-            worker_thread,
+            _worker_thread: worker_thread,
             receiver,
         }
     }
