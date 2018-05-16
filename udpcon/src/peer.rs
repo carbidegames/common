@@ -9,9 +9,11 @@ use {
         net::{UdpSocket},
         Events, Ready, Poll, PollOpt, Token,
     },
+    crc::{crc32},
+    byteorder::{WriteBytesExt, LittleEndian, ByteOrder},
 };
 
-type WorkerMessage = (SocketAddr, [u8; 4]);
+type WorkerMessage = (SocketAddr, Vec<u8>);
 
 pub struct Peer {
     _worker_thread: JoinHandle<()>,
@@ -20,11 +22,15 @@ pub struct Peer {
 }
 
 impl Peer {
-    pub fn start(mode: PeerMode) -> Self {
+    pub fn start(mode: PeerMode, protocol: &'static str) -> Self {
+        // Get our protocol identifier from the caller-friendly string
+        let protocol_id = crc32::checksum_ieee(protocol.as_bytes());
+
+        // Set up the worker that manages the sockets
         let (worker_incoming, incoming) = mpsc::channel();
         let (outgoing, worker_outgoing) = mpsc::channel();
         let worker_thread = thread::spawn(move || {
-            worker(mode, worker_outgoing, worker_incoming);
+            worker(mode, protocol_id, worker_outgoing, worker_incoming);
         });
 
         Peer {
@@ -34,11 +40,11 @@ impl Peer {
         }
     }
 
-    pub fn send(&self, target: SocketAddr, data: [u8; 4]) {
+    pub fn send(&self, target: SocketAddr, data: Vec<u8>) {
         self.outgoing.send((target, data)).unwrap();
     }
 
-    pub fn try_recv(&self) -> Option<(SocketAddr, [u8; 4])> {
+    pub fn try_recv(&self) -> Option<(SocketAddr, Vec<u8>)> {
         self.incoming.try_recv().ok()
     }
 }
@@ -49,24 +55,13 @@ pub enum PeerMode {
 }
 
 fn worker(
-    mode: PeerMode,
+    mode: PeerMode, protocol_id: u32,
     worker_outgoing: Receiver<WorkerMessage>, worker_incoming: Sender<WorkerMessage>
 ) {
     const WRITE: Token = Token(0);
     const READ: Token = Token(1);
 
-    // Set up the connection, depending on if we're a client or server
-    let write_socket = UdpSocket::bind(&"0.0.0.0:0".parse().unwrap()).unwrap();
-    let read_socket = match mode {
-        PeerMode::Server { address } => {
-            UdpSocket::bind(&address).unwrap()
-        }
-        PeerMode::Client { server } => {
-            let socket = UdpSocket::bind(&"0.0.0.0:0".parse().unwrap()).unwrap();
-            socket.connect(server).unwrap();
-            socket
-        },
-    };
+    let (write_socket, read_socket) = initialize_sockets(mode);
 
     // Set up what socket events we're looking for
     let poll = Poll::new().unwrap();
@@ -80,17 +75,50 @@ fn worker(
         for event in events.iter() {
             match event.token() {
                 WRITE => {
-                    while let Some(data) = worker_outgoing.try_recv().ok() {
-                        write_socket.send_to(&data.1, &data.0).unwrap();
+                    if let Some((target, mut data)) = worker_outgoing.try_recv().ok() {
+                        // Append the protocol ID so the receiver can verify its validness
+                        // It's appended at the end because we will know the length anyways, so
+                        // our header doesn't have to be at the start. This way we can avoid having
+                        // to copy data to put the header at the start.
+                        data.write_u32::<LittleEndian>(protocol_id).unwrap();
+
+                        write_socket.send_to(&data, &target).unwrap();
                     }
                 },
                 READ => {
-                    let mut buffer = [0; 4];
-                    let from = read_socket.recv_from(&mut buffer).unwrap().1;
-                    worker_incoming.send((from, buffer)).unwrap()
+                    let mut buffer = vec![0; 512];
+                    let (length, from) = read_socket.recv_from(&mut buffer).unwrap();
+
+                    // If the packet is too small to have our header, just skip it
+                    if length < 4 { continue }
+
+                    // Verify the protocol ID, if it's not right, skip this packet
+                    let client_protocol_id = LittleEndian::read_u32(&buffer[length-4..length]);
+                    if client_protocol_id != protocol_id { continue }
+
+                    // Resize the vector to hide waste data, then send it over
+                    buffer.resize(length-4, 0);
+                    worker_incoming.send((from, buffer.to_vec())).unwrap()
                 }
                 _ => unreachable!()
             }
         }
     }
+}
+
+/// Set up the sockets, depending on if we're a client or server
+fn initialize_sockets(mode: PeerMode) -> (UdpSocket, UdpSocket) {
+    let write_socket = UdpSocket::bind(&"0.0.0.0:0".parse().unwrap()).unwrap();
+    let read_socket = match mode {
+        PeerMode::Server { address } => {
+            UdpSocket::bind(&address).unwrap()
+        }
+        PeerMode::Client { server } => {
+            let socket = UdpSocket::bind(&"0.0.0.0:0".parse().unwrap()).unwrap();
+            socket.connect(server).unwrap();
+            socket
+        },
+    };
+
+    (write_socket, read_socket)
 }
