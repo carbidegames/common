@@ -1,0 +1,7 @@
+[package]
+name = "udpcon"
+version = "0.1.0"
+authors = ["Layl <LaylConway@users.noreply.github.com>"]
+
+[dependencies]
+mio = "0.6"
