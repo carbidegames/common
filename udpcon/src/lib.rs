@@ -1,11 +1,9 @@
 extern crate mio;
 
-mod client;
-mod server;
+mod peer;
 
 pub use {
-    client::{Client},
-    server::{Server},
+    peer::{Peer, PeerMode},
 };
 
 // Remember, recommended UDP packet size is: 512
