@@ -74,7 +74,9 @@ fn read(read_socket: &UdpSocket, worker_incoming: &Sender<WorkerMessage>) {
     let mut buffer = vec![0; 512];
     let (length, from) = read_socket.recv_from(&mut buffer).unwrap();
 
-    // If the packet is too small to have our header, don't even bother processing it
+    // If the packet is too small to have our header, don't even bother sending it
+    // Doing this here prevents us from clogging the channel with empty packets in case of a DoS
+    // attack
     if length < 4 { return }
 
     // Resize the vector to hide waste data, then send it over

@@ -1,5 +1,6 @@
 use {
     std::{
+        collections::{VecDeque},
         thread::{self, JoinHandle},
         net::{SocketAddr},
         sync::mpsc::{self, Sender, Receiver},
@@ -14,9 +15,12 @@ use {
 
 pub struct Peer {
     protocol_id: u32,
+
     _worker_thread: JoinHandle<()>,
     incoming: Receiver<WorkerMessage>,
     outgoing: Sender<WorkerMessage>,
+
+    queued_events: VecDeque<Event>,
 }
 
 impl Peer {
@@ -33,9 +37,12 @@ impl Peer {
 
         Peer {
             protocol_id,
+
             _worker_thread: worker_thread,
             incoming,
             outgoing,
+
+            queued_events: VecDeque::new(),
         }
     }
 
@@ -49,6 +56,7 @@ impl Peer {
         // It's recommended to limit UDP packets to 512 bytes, and the read side only allocates
         // that much data in the buffer for receiving. Therefore, prevent any packets that are too
         // large.
+        // TODO: Support automatically splitting large packets
         if data.len() > 512 {
             return Err(Error::DataTooLarge)
         }
@@ -57,9 +65,12 @@ impl Peer {
         Ok(())
     }
 
-    pub fn try_recv(&self) -> Option<(SocketAddr, Vec<u8>)> {
-        // Keep trying until we've got valid data or we run out
-        while let Some((address, mut data)) = self.incoming.try_recv().ok() {
+    /// Checks for incoming packets and network events.
+    /// This is combined into one event queue to make sure network events can be handled
+    /// sequentially, for example you can be sure a Packet event won't be received before a
+    /// NewPeer event.
+    pub fn poll(&mut self) -> EventsIter {
+        while let Some((source, mut data)) = self.incoming.try_recv().ok() {
             let header_start = data.len()-4;
 
             // Verify the protocol ID, if it's not right, skip this packet
@@ -69,14 +80,31 @@ impl Peer {
             // Hide the header
             data.resize(header_start, 0);
 
-            return Some((address, data))
+            self.queued_events.push_back(Event::Packet { source, data });
         }
 
-        None
+        EventsIter { queued_events: &mut self.queued_events }
     }
 }
 
 pub enum PeerMode {
     Server { address: SocketAddr },
     Client { server: SocketAddr },
+}
+
+pub struct EventsIter<'a> {
+    queued_events: &'a mut VecDeque<Event>,
+}
+
+impl<'a> Iterator for EventsIter<'a> {
+    type Item = Event;
+
+    fn next(&mut self) -> Option<Event> {
+        self.queued_events.pop_front()
+    }
+}
+
+#[derive(Debug)]
+pub enum Event {
+    Packet { source: SocketAddr, data: Vec<u8> },
 }
