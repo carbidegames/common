@@ -6,7 +6,7 @@ mod peer;
 mod worker;
 
 pub use {
-    peer::{Peer, PeerMode, EventsIter, Event},
+    peer::{Peer, EventsIter, Event},
 };
 
 #[derive(Debug)]

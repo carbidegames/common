@@ -24,7 +24,7 @@ pub struct Peer {
 }
 
 impl Peer {
-    pub fn start(mode: PeerMode, protocol: &'static str) -> Self {
+    pub fn start(address: Option<SocketAddr>, protocol: &'static str) -> Self {
         // Get our protocol identifier from the caller-friendly string
         let protocol_id = crc32::checksum_ieee(protocol.as_bytes());
 
@@ -32,7 +32,7 @@ impl Peer {
         let (worker_incoming, incoming) = mpsc::channel();
         let (outgoing, worker_outgoing) = mpsc::channel();
         let worker_thread = thread::spawn(move || {
-            worker::worker(mode, worker_outgoing, worker_incoming);
+            worker::worker(address, worker_outgoing, worker_incoming);
         });
 
         Peer {
@@ -80,16 +80,14 @@ impl Peer {
             // Hide the header
             data.resize(header_start, 0);
 
+            // Check if we haven't seen this peer before, if that's the case we have to raise a new
+            // peer event before the packet event
+
             self.queued_events.push_back(Event::Packet { source, data });
         }
 
         EventsIter { queued_events: &mut self.queued_events }
     }
-}
-
-pub enum PeerMode {
-    Server { address: SocketAddr },
-    Client { server: SocketAddr },
 }
 
 pub struct EventsIter<'a> {
