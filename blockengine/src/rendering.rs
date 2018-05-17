@@ -10,7 +10,7 @@ use {
         RenderTarget, DepthTarget,
     },
     gfx_device_gl::{Resources},
-    nalgebra::{Perspective3, Point3, Vector3},
+    nalgebra::{Vector2, Point3, Vector3},
 
     lagato::{camera::{RenderCamera}, grid::{Voxels}},
 };
@@ -114,16 +114,7 @@ impl Renderer {
                 graphics::get_gfx_objects(ctx);
             encoder.clear(&self.data.out_color, [0.1, 0.1, 0.1, 1.0]);
 
-            let h_fov = ::std::f32::consts::PI / 2.0; // 90 deg
-            let fov_ratio = window_height as f32 / window_width as f32;
-            let v_fov = 2.0 * ((h_fov/2.0).tan() * fov_ratio).atan();
-
-            // Aspect ratio, FOV, znear, zfar
-            let ratio = window_width as f32 / window_height as f32;
-            let projection = Perspective3::new(ratio, v_fov, 0.2, 1000.0);
-            let view = camera.view_matrix();
-            let transform = projection.as_matrix() * view.try_inverse().unwrap();
-
+            let transform = camera.world_to_clip_matrix(Vector2::new(window_width, window_height));
             let locals = Locals {
                 transform: transform.into(),
             };
