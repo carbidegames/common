@@ -1,6 +1,6 @@
 use {
     std::{
-        collections::{VecDeque},
+        collections::{VecDeque, HashSet},
         thread::{self, JoinHandle},
         net::{SocketAddr},
         sync::mpsc::{self, Sender, Receiver},
@@ -11,6 +11,7 @@ use {
 
     worker::{self, WorkerMessage},
     Error,
+    MTU_ESTIMATE,
 };
 
 pub struct Peer {
@@ -21,6 +22,7 @@ pub struct Peer {
     outgoing: Sender<WorkerMessage>,
 
     queued_events: VecDeque<Event>,
+    peers: HashSet<SocketAddr>,
 }
 
 impl Peer {
@@ -43,6 +45,7 @@ impl Peer {
             outgoing,
 
             queued_events: VecDeque::new(),
+            peers: HashSet::new(),
         }
     }
 
@@ -53,11 +56,9 @@ impl Peer {
         // the start.
         data.write_u32::<LittleEndian>(self.protocol_id).unwrap();
 
-        // It's recommended to limit UDP packets to 512 bytes, and the read side only allocates
-        // that much data in the buffer for receiving. Therefore, prevent any packets that are too
-        // large.
+        // Limit packet sizes to at most the MTU, anything more might get dropped
         // TODO: Support automatically splitting large packets
-        if data.len() > 512 {
+        if data.len() > MTU_ESTIMATE {
             return Err(Error::DataTooLarge)
         }
 
@@ -82,6 +83,10 @@ impl Peer {
 
             // Check if we haven't seen this peer before, if that's the case we have to raise a new
             // peer event before the packet event
+            if !self.peers.contains(&source) {
+                self.peers.insert(source);
+                self.queued_events.push_back(Event::NewPeer { address: source })
+            }
 
             self.queued_events.push_back(Event::Packet { source, data });
         }
@@ -104,5 +109,6 @@ impl<'a> Iterator for EventsIter<'a> {
 
 #[derive(Debug)]
 pub enum Event {
-    Packet { source: SocketAddr, data: Vec<u8> },
+    Packet { source: SocketAddr, data: Vec<u8>, },
+    NewPeer { address: SocketAddr, },
 }

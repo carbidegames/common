@@ -8,6 +8,8 @@ use {
         net::{UdpSocket},
         Events, Ready, Poll, PollOpt, Token,
     },
+
+    MTU_ESTIMATE,
 };
 
 pub type WorkerMessage = (SocketAddr, Vec<u8>);
@@ -54,14 +56,14 @@ fn initialize_sockets(address: Option<SocketAddr>) -> (UdpSocket, UdpSocket) {
 fn write(write_socket: &UdpSocket, worker_outgoing: &Receiver<WorkerMessage>) {
     if let Some((target, data)) = worker_outgoing.try_recv().ok() {
         // This is verified by the send function, but just in case something went wrong
-        assert!(data.len() <= 512);
+        assert!(data.len() <= MTU_ESTIMATE);
 
         write_socket.send_to(&data, &target).unwrap();
     }
 }
 
 fn read(read_socket: &UdpSocket, worker_incoming: &Sender<WorkerMessage>) {
-    let mut buffer = vec![0; 512];
+    let mut buffer = vec![0; MTU_ESTIMATE];
     let (length, from) = read_socket.recv_from(&mut buffer).unwrap();
 
     // If the packet is too small to have our header, don't even bother sending it
