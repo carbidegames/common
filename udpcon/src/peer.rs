@@ -1,9 +1,10 @@
 use {
     std::{
-        collections::{VecDeque, HashSet},
+        collections::{VecDeque, HashMap},
         thread::{self, JoinHandle},
         net::{SocketAddr},
         sync::mpsc::{self, Sender, Receiver},
+        time::{Instant, Duration},
     },
 
     crc::{crc32},
@@ -22,7 +23,7 @@ pub struct Peer {
     outgoing: Sender<WorkerMessage>,
 
     queued_events: VecDeque<Event>,
-    peers: HashSet<SocketAddr>,
+    connections: HashMap<SocketAddr, PeerConnection>,
 }
 
 impl Peer {
@@ -45,7 +46,7 @@ impl Peer {
             outgoing,
 
             queued_events: VecDeque::new(),
-            peers: HashSet::new(),
+            connections: HashMap::new(),
         }
     }
 
@@ -71,6 +72,8 @@ impl Peer {
     /// sequentially, for example you can be sure a Packet event won't be received before a
     /// NewPeer event.
     pub fn poll(&mut self) -> EventsIter {
+        let now = Instant::now();
+
         while let Some((source, mut data)) = self.incoming.try_recv().ok() {
             let header_start = data.len()-4;
 
@@ -81,14 +84,30 @@ impl Peer {
             // Hide the header
             data.resize(header_start, 0);
 
-            // Check if we haven't seen this peer before, if that's the case we have to raise a new
-            // peer event before the packet event
-            if !self.peers.contains(&source) {
-                self.peers.insert(source);
+            // Update when the last time we got a packet was
+            if self.connections.contains_key(&source) {
+                // We currently have a connection with this peer, update the last time we saw it
+                self.connections.get_mut(&source).unwrap().last_packet = now;
+            } else {
+                // We haven't seen this peer yet, so add it now and raise an event for it
+                self.connections.insert(source, PeerConnection { last_packet: now });
                 self.queued_events.push_back(Event::NewPeer { address: source })
             }
 
             self.queued_events.push_back(Event::Packet { source, data });
+        }
+
+        // Check if any connections have timed out
+        {
+            let timeout = Duration::new(5, 0);
+            let queued_events = &mut self.queued_events;
+            self.connections.retain(|address, peer| {
+                let timed_out = now.duration_since(peer.last_packet) >= timeout;
+                if timed_out {
+                    queued_events.push_back(Event::PeerTimedOut { address: *address });
+                }
+                !timed_out
+            });
         }
 
         EventsIter { queued_events: &mut self.queued_events }
@@ -109,6 +128,11 @@ impl<'a> Iterator for EventsIter<'a> {
 
 #[derive(Debug)]
 pub enum Event {
-    Packet { source: SocketAddr, data: Vec<u8>, },
-    NewPeer { address: SocketAddr, },
+    Packet { source: SocketAddr, data: Vec<u8> },
+    NewPeer { address: SocketAddr },
+    PeerTimedOut { address: SocketAddr },
+}
+
+struct PeerConnection {
+    last_packet: Instant,
 }
