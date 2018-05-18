@@ -85,32 +85,38 @@ impl Peer {
             data.resize(header_start, 0);
 
             // Update when the last time we got a packet was
-            if self.connections.contains_key(&source) {
-                // We currently have a connection with this peer, update the last time we saw it
-                self.connections.get_mut(&source).unwrap().last_packet = now;
-            } else {
-                // We haven't seen this peer yet, so add it now and raise an event for it
-                self.connections.insert(source, PeerConnection { last_packet: now });
-                self.queued_events.push_back(Event::NewPeer { address: source })
-            }
+            self.update_last_packet(source, now);
 
             self.queued_events.push_back(Event::Packet { source, data });
         }
 
         // Check if any connections have timed out
-        {
-            let timeout = Duration::new(5, 0);
-            let queued_events = &mut self.queued_events;
-            self.connections.retain(|address, peer| {
-                let timed_out = now.duration_since(peer.last_packet) >= timeout;
-                if timed_out {
-                    queued_events.push_back(Event::PeerTimedOut { address: *address });
-                }
-                !timed_out
-            });
-        }
+        self.check_timeouts(now);
 
         EventsIter { queued_events: &mut self.queued_events }
+    }
+
+    fn update_last_packet(&mut self, source: SocketAddr, now: Instant) {
+        if self.connections.contains_key(&source) {
+            // We currently have a connection with this peer, update the last time we saw it
+            self.connections.get_mut(&source).unwrap().last_packet = now;
+        } else {
+            // We haven't seen this peer yet, so add it now and raise an event for it
+            self.connections.insert(source, PeerConnection { last_packet: now });
+            self.queued_events.push_back(Event::NewPeer { address: source })
+        }
+    }
+
+    fn check_timeouts(&mut self, now: Instant) {
+        let timeout = Duration::new(5, 0);
+        let queued_events = &mut self.queued_events;
+        self.connections.retain(|address, peer| {
+            let timed_out = now.duration_since(peer.last_packet) >= timeout;
+            if timed_out {
+                queued_events.push_back(Event::PeerTimedOut { address: *address });
+            }
+            !timed_out
+        });
     }
 }
 
