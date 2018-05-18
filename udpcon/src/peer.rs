@@ -1,27 +1,20 @@
 use {
     std::{
         collections::{VecDeque, HashMap},
-        thread::{self, JoinHandle},
         net::{SocketAddr},
-        sync::mpsc::{self, Sender, Receiver},
         time::{Instant, Duration},
     },
 
-    mio::{Registration, SetReadiness, Ready},
     crc::{crc32},
 
     header::{Header, PacketClass},
-    worker::{self, WorkerMessage},
+    worker::{PacketWorker},
     Error, MTU_ESTIMATE,
 };
 
 pub struct Peer {
     protocol_id: u32,
-
-    _worker_thread: JoinHandle<()>,
-    incoming: Receiver<WorkerMessage>,
-    outgoing: Sender<WorkerMessage>,
-    outgoing_set: SetReadiness,
+    worker: PacketWorker,
 
     queued_events: VecDeque<Event>,
     connections: HashMap<SocketAddr, PeerConnection>,
@@ -34,24 +27,11 @@ impl Peer {
         // Get our protocol identifier from the caller-friendly string
         let protocol_id = crc32::checksum_ieee(protocol.as_bytes());
 
-        // Set up the worker that manages the sockets
-        let (worker_incoming, incoming) = mpsc::channel();
-        let (outgoing, worker_outgoing) = mpsc::channel();
-        let (registration, outgoing_set) = Registration::new2();
-        let worker_set = outgoing_set.clone();
-        let worker_thread = thread::spawn(move || {
-            worker::worker(
-                bind_address, worker_outgoing, worker_incoming, registration, worker_set
-            );
-        });
+        let worker = PacketWorker::new(bind_address);
 
         Peer {
             protocol_id,
-
-            _worker_thread: worker_thread,
-            incoming,
-            outgoing,
-            outgoing_set,
+            worker,
 
             queued_events: VecDeque::new(),
             connections: HashMap::new(),
@@ -75,7 +55,7 @@ impl Peer {
     pub fn poll(&mut self) -> EventsIter {
         let now = Instant::now();
 
-        while let Some((source, data)) = self.incoming.try_recv().ok() {
+        while let Some((source, data)) = self.worker.try_recv() {
             // The header extraction makes sure we're not being sent garbage
             if let Some((header, data)) = Header::extract(data, self.protocol_id) {
                 // Update when the last time we got a packet was
@@ -156,8 +136,7 @@ impl Peer {
             connection.last_sent = Instant::now();
         }
 
-        self.outgoing.send((target, data)).unwrap();
-        self.outgoing_set.set_readiness(Ready::readable()).unwrap();
+        self.worker.send(target, data);
         Ok(())
     }
 }

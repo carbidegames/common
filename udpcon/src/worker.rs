@@ -2,7 +2,8 @@ use {
     std::{
         collections::{VecDeque},
         net::{SocketAddr},
-        sync::mpsc::{Sender, Receiver},
+        thread::{self, JoinHandle},
+        sync::mpsc::{self, Sender, Receiver},
     },
 
     mio::{
@@ -16,7 +17,44 @@ use {
 
 pub type WorkerMessage = (SocketAddr, Vec<u8>);
 
-pub fn worker(
+pub struct PacketWorker {
+    _worker_thread: JoinHandle<()>,
+    incoming: Receiver<WorkerMessage>,
+    outgoing: Sender<WorkerMessage>,
+    outgoing_set: SetReadiness,
+}
+
+impl PacketWorker {
+    pub fn new(bind_address: Option<SocketAddr>) -> Self {
+        let (worker_incoming, incoming) = mpsc::channel();
+        let (outgoing, worker_outgoing) = mpsc::channel();
+        let (registration, outgoing_set) = Registration::new2();
+        let worker_set = outgoing_set.clone();
+        let worker_thread = thread::spawn(move || {
+            worker_runtime(
+                bind_address, worker_outgoing, worker_incoming, registration, worker_set
+            );
+        });
+
+        PacketWorker {
+            _worker_thread: worker_thread,
+            incoming,
+            outgoing,
+            outgoing_set,
+        }
+    }
+
+    pub fn try_recv(&self) -> Option<WorkerMessage> {
+        self.incoming.try_recv().ok()
+    }
+
+    pub fn send(&self, target: SocketAddr, data: Vec<u8>) {
+        self.outgoing.send((target, data)).unwrap();
+        self.outgoing_set.set_readiness(Ready::readable()).unwrap();
+    }
+}
+
+fn worker_runtime(
     bind_address: Option<SocketAddr>,
     worker_outgoing: Receiver<WorkerMessage>, worker_incoming: Sender<WorkerMessage>,
     registration: Registration, worker_set: SetReadiness,
