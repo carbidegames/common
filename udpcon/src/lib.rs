@@ -1,7 +1,10 @@
 extern crate mio;
 extern crate crc;
 extern crate byteorder;
+extern crate num_traits;
+#[macro_use] extern crate num_derive;
 
+mod header;
 mod peer;
 mod worker;
 
