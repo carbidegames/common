@@ -66,7 +66,7 @@ fn worker_runtime(
         &bind_address.unwrap_or_else(|| "0.0.0.0:0".parse().unwrap())
     ).unwrap();
 
-    // Set up what socket events we're looking for
+    // Set up what events we're looking for
     let poll = Poll::new().unwrap();
     poll.register(&socket, SOCKET, Ready::readable(), PollOpt::edge()).unwrap();
     poll.register(&registration, CHANNEL, Ready::readable(), PollOpt::edge()).unwrap();

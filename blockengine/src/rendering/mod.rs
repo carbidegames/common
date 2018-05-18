@@ -6,13 +6,16 @@ use {
     gfx::{
         traits::{FactoryExt},
         texture::{SamplerInfo, Kind, Mipmap, AaMode, FilterMethod, WrapMode},
+        handle::{Buffer},
         self, PipelineState, Slice, Factory, VertexBuffer, ConstantBuffer, TextureSampler,
         RenderTarget, DepthTarget,
     },
     gfx_device_gl::{Resources},
-    nalgebra::{Vector2, Point3, Vector3},
+    nalgebra::{Vector2, Point3, Vector3, Matrix4},
 
     lagato::{camera::{RenderCamera}, grid::{Voxels}},
+
+    Chunk,
 };
 
 type ColorFormat = gfx::format::Srgba8;
@@ -40,28 +43,13 @@ gfx_defines!{
 pub struct Renderer {
     data: pipe::Data<Resources>,
     pso: PipelineState<Resources, pipe::Meta>,
-    slice: Slice<Resources>,
 }
 
 impl Renderer {
-    pub fn new(ctx: &mut Context, voxels: &Voxels<bool>) -> Self {
+    pub fn new(ctx: &mut Context) -> Self {
         let color_view = graphics::get_screen_render_target(ctx);
         let depth_view = graphics::get_depth_view(ctx);
         let factory = graphics::get_factory(ctx);
-
-        // Add some cubes
-        let mut vertices = Vec::new();
-        for position in voxels.iter_pos() {
-            if *voxels.get(position).unwrap() {
-                add_cube_vertices(
-                    &mut vertices,
-                    Vector3::new(position.x as f32, position.y as f32, position.z as f32)
-                );
-            }
-        }
-
-        // Create vertex buffer
-        let (vbuf, slice) = factory.create_vertex_buffer_with_slice(&vertices, ());
 
         // Create 1-pixel blue texture.
         let texels = [[0x20, 0xA0, 0xC0, 0x00]];
@@ -86,9 +74,9 @@ impl Renderer {
             pipe::new()
         ).unwrap();
 
-        // Bundle all the data together.
+        // Bundle all the data together
         let data = pipe::Data {
-            vbuf,
+            vbuf: factory.create_vertex_buffer(&[]),
             locals: factory.create_constant_buffer(1),
             texture: (texture_view, factory.create_sampler(sinfo)),
             out_color: color_view,
@@ -98,12 +86,11 @@ impl Renderer {
         Renderer {
             data,
             pso,
-            slice,
         }
     }
 
     pub fn draw(
-        &self, ctx: &mut Context, camera: &RenderCamera,
+        &mut self, ctx: &mut Context, camera: &RenderCamera, chunks: &Vec<Chunk>
     ) -> GameResult<()> {
         graphics::set_background_color(ctx, (10, 10, 15).into());
         graphics::clear(ctx);
@@ -113,21 +100,61 @@ impl Renderer {
             let (_factory, device, encoder, _depthview, _colorview) =
                 graphics::get_gfx_objects(ctx);
             encoder.clear(&self.data.out_color, [0.1, 0.1, 0.1, 1.0]);
-
-            let transform = camera.world_to_clip_matrix(Vector2::new(window_width, window_height));
-            let locals = Locals {
-                transform: transform.into(),
-            };
-            encoder.update_constant_buffer(&self.data.locals, &locals);
             encoder.clear_depth(&self.data.out_depth, 1.0);
 
-            encoder.draw(&self.slice, &self.pso, &self.data);
+            let camera = camera.world_to_clip_matrix(Vector2::new(window_width, window_height));
+
+            for chunk in chunks {
+                self.data.vbuf = chunk.mesh.vbuf.clone();
+
+                let model = Matrix4::new_translation(&Vector3::new(
+                    chunk.position.x as f32 * 16.0, 0.0, chunk.position.y as f32 * 16.0)
+                );
+                let transform = camera * model;
+                let locals = Locals {
+                    transform: transform.into(),
+                };
+                encoder.update_constant_buffer(&self.data.locals, &locals);
+
+                encoder.draw(&chunk.mesh.slice, &self.pso, &self.data);
+            }
+
             encoder.flush(device);
         }
 
         graphics::present(ctx);
 
         Ok(())
+    }
+}
+
+pub struct VoxelsMesh {
+    vbuf: Buffer<Resources, Vertex>,
+    slice: Slice<Resources>,
+}
+
+impl VoxelsMesh {
+    pub fn triangulate(ctx: &mut Context, voxels: &Voxels<bool>) -> Self {
+        let factory = graphics::get_factory(ctx);
+
+        // Add some cubes
+        let mut vertices = Vec::new();
+        for position in voxels.iter_pos() {
+            if *voxels.get(position).unwrap() {
+                add_cube_vertices(
+                    &mut vertices,
+                    Vector3::new(position.x as f32, position.y as f32, position.z as f32)
+                );
+            }
+        }
+
+        // Create vertex buffer
+        let (vbuf, slice) = factory.create_vertex_buffer_with_slice(&vertices, ());
+
+        Self {
+            vbuf,
+            slice,
+        }
     }
 }
 
