@@ -38,6 +38,10 @@ impl Peer {
         }
     }
 
+    pub fn connect(&mut self, target: SocketAddr) {
+        self.send_heartbeat(target);
+    }
+
     /// Sends an outgoing message to a target.
     pub fn send(&mut self, target: SocketAddr, mut data: Vec<u8>) -> Result<(), Error> {
         let header = Header {
@@ -113,14 +117,18 @@ impl Peer {
         }
 
         for address in needs_heartbeat {
-            let mut data = Vec::new();
-            let header = Header {
-                class: PacketClass::Heartbeat,
-            };
-            header.write_to(&mut data, self.protocol_id);
-
-            self.send_packet(address, data).unwrap();
+            self.send_heartbeat(address);
         }
+    }
+
+    fn send_heartbeat(&mut self, target: SocketAddr) {
+        let mut data = Vec::new();
+        let header = Header {
+            class: PacketClass::Heartbeat,
+        };
+        header.write_to(&mut data, self.protocol_id);
+
+        self.send_packet(target, data).unwrap();
     }
 
     fn send_packet(&mut self, target: SocketAddr, data: Vec<u8>) -> Result<(), Error> {
