@@ -1,11 +1,11 @@
-mod bounds;
 mod dim;
 mod grid;
+mod range;
 
 pub use self::{
-    bounds::{Bounds, IterBounds},
     dim::{Dim, Dim2, Dim3},
     grid::{Grid, Error},
+    range::{Range, IterRange},
 };
 
 pub type Tiles<Tile> = Grid<Tile, Dim2>;

@@ -8,13 +8,13 @@ extern crate lagato;
 pub mod rendering;
 
 use {
-    nalgebra::{Vector2},
+    nalgebra::{Point2},
     lagato::grid::{Voxels},
     rendering::{VoxelsMesh}
 };
 
 pub struct Chunk {
-    pub position: Vector2<i32>,
+    pub position: Point2<i32>,
     pub voxels: Voxels<bool>,
     pub mesh: VoxelsMesh,
 }

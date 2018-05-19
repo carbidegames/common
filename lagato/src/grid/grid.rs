@@ -1,7 +1,7 @@
 use {
     nalgebra::{Point2},
 
-    grid::{Dim, Dim2, Bounds, IterBounds},
+    grid::{Dim, Dim2, Range, IterRange},
     Event,
 };
 
@@ -54,8 +54,8 @@ impl<Cell, D: Dim> Grid<Cell, D> {
         D::is_in_bounds(position, self.size)
     }
 
-    pub fn iter_pos(&self) -> IterBounds<D> {
-        Bounds {
+    pub fn iter_pos(&self) -> IterRange<D> {
+        Range {
             start: D::start(),
             end: D::end(self.size),
         }.iter()
@@ -63,13 +63,13 @@ impl<Cell, D: Dim> Grid<Cell, D> {
 }
 
 impl<Cell> Grid<Cell, Dim2> {
-    pub fn bounds(&self, start: Point2<f32>, end: Point2<f32>) -> Bounds<Dim2> {
+    pub fn bounds(&self, start: Point2<f32>, end: Point2<f32>) -> Range<Dim2> {
         let start_x = (start.x.floor() as i32).max(0);
         let start_y = (start.y.floor() as i32).max(0);
         let end_x = (end.x.ceil() as i32).min(self.size.x);
         let end_y = (end.y.ceil() as i32).min(self.size.y);
 
-        Bounds {
+        Range {
             start: Point2::new(start_x, start_y),
             end: Point2::new(end_x, end_y),
         }
