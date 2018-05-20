@@ -1,12 +1,15 @@
 #version 150 core
 
-uniform sampler2D u_texture;
+uniform Locals {
+    mat4 u_transform;
+};
 
-in vec2 v_tex_coord;
-out vec4 o_color;
+in vec4 a_pos;
+in vec2 a_tex_coord;
+out vec2 v_tex_coord;
 
 void main() {
-    vec4 tex = texture(u_texture, v_tex_coord);
-    float blend = dot(v_tex_coord-vec2(0.5,0.5), v_tex_coord-vec2(0.5,0.5));
-    o_color = mix(tex, vec4(0.0,0.0,0.0,0.0), blend*1.0);
+    v_tex_coord = a_tex_coord;
+    gl_Position = u_transform * a_pos;
+    gl_ClipDistance[0] = 1.0;
 }

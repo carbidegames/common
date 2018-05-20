@@ -1,4 +1,6 @@
 use {
+    std::io::{Read},
+
     ggez::{
         Context, GameResult,
         graphics,
@@ -12,6 +14,7 @@ use {
     },
     gfx_device_gl::{Resources},
     nalgebra::{Vector2, Point3, Vector3, Matrix4},
+    image::{self},
 
     lagato::{camera::{RenderCamera}, grid::{Voxels}},
 
@@ -47,25 +50,32 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(ctx: &mut Context) -> Self {
+        let mut buffer = Vec::new();
+        let mut reader = ctx.filesystem.open("/dirt.png").unwrap();
+        reader.read_to_end(&mut buffer).unwrap();
+
         let color_view = graphics::get_screen_render_target(ctx);
         let depth_view = graphics::get_depth_view(ctx);
         let factory = graphics::get_factory(ctx);
 
-        // Create 1-pixel blue texture.
-        let texels = [[0x20, 0xA0, 0xC0, 0x00]];
+        // Create a texture for the voxels
+        let image = image::load_from_memory(&buffer).unwrap().to_rgba();
+        let image_dimensions = image.dimensions();
+
+        let data: [&[u8]; 1] = [&image.into_raw()];
         let (_, texture_view) = factory
-            .create_texture_immutable::<gfx::format::Rgba8>(
-                Kind::D2(1, 1, AaMode::Single),
+            .create_texture_immutable_u8::<gfx::format::Srgba8>(
+                Kind::D2(image_dimensions.0 as u16, image_dimensions.1 as u16, AaMode::Single),
                 Mipmap::Provided,
-                &[&texels],
+                &data,
             )
             .unwrap();
 
         let sinfo = SamplerInfo::new(FilterMethod::Bilinear, WrapMode::Clamp);
 
         // Create pipeline state object
-        let vs = include_bytes!("s_fragment.glsl");
-        let fs = include_bytes!("s_vertex.glsl");
+        let vs = include_bytes!("s_vertex.glsl");
+        let fs = include_bytes!("s_fragment.glsl");
         let set = factory.create_shader_set(vs, fs).unwrap();
         let pso = factory.create_pipeline_state(
             &set,
