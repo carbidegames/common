@@ -91,6 +91,11 @@ impl Peer {
                     PacketClass::UnreliableMessage =>
                         self.queued_events.push_back(Event::Message { source, data }),
                     PacketClass::SequencedMessage => {
+                        // Make sure we have enough remaining data for this header
+                        if data.len() < SequencedHeader::START_OFFSET {
+                            continue
+                        }
+
                         // This means we also need to extract the sequenced header
                         let (sequenced_header, data) = SequencedHeader::extract(data);
 
