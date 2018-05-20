@@ -7,7 +7,7 @@ use {
 
     crc::{crc32},
 
-    header::{Header, PacketClass},
+    header::{Header, PacketClass, SequencedHeader},
     worker::{PacketWorker},
     Error, MTU_ESTIMATE,
 };
@@ -18,6 +18,8 @@ pub struct Peer {
 
     queued_events: VecDeque<Event>,
     connections: HashMap<SocketAddr, PeerConnection>,
+    next_packet_number: u32,
+    last_received_packet_number: u32,
 }
 
 impl Peer {
@@ -35,6 +37,8 @@ impl Peer {
 
             queued_events: VecDeque::new(),
             connections: HashMap::new(),
+            next_packet_number: 1,
+            last_received_packet_number: 0,
         }
     }
 
@@ -47,10 +51,24 @@ impl Peer {
     }
 
     /// Sends an outgoing message to a target.
-    pub fn send(&mut self, target: SocketAddr, mut data: Vec<u8>) -> Result<(), Error> {
-        let header = Header {
-            class: PacketClass::Message,
+    pub fn send(
+        &mut self, target: SocketAddr, mut data: Vec<u8>, reliability: Reliability,
+    ) -> Result<(), Error> {
+        // Headers are attached after data and eachother in sequence, the header at the end is used
+        // to interpret what headers should be read in before it.
+
+        let class = match reliability {
+            Reliability::Unreliable => PacketClass::UnreliableMessage,
+            Reliability::Sequenced => {
+                let sequenced_header = SequencedHeader { packet_number: self.next_packet_number };
+                self.next_packet_number += 1;
+                sequenced_header.write_to(&mut data);
+
+                PacketClass::SequencedMessage
+            },
         };
+
+        let header = Header { class };
         header.write_to(&mut data, self.protocol_id);
 
         self.send_packet(target, data)
@@ -69,8 +87,22 @@ impl Peer {
                 // Update when the last time we got a packet was
                 self.update_last_packet(source, now);
 
-                if header.class == PacketClass::Message {
-                    self.queued_events.push_back(Event::Message { source, data });
+                match header.class {
+                    PacketClass::UnreliableMessage =>
+                        self.queued_events.push_back(Event::Message { source, data }),
+                    PacketClass::SequencedMessage => {
+                        // This means we also need to extract the sequenced header
+                        let (sequenced_header, data) = SequencedHeader::extract(data);
+
+                        // Check if we should drop this packet
+                        if sequenced_header.packet_number <= self.last_received_packet_number {
+                            continue
+                        }
+                        self.last_received_packet_number = sequenced_header.packet_number;
+
+                        self.queued_events.push_back(Event::Message { source, data });
+                    },
+                    _ => {},
                 }
             }
         }
@@ -151,6 +183,17 @@ impl Peer {
         self.worker.send(target, data);
         Ok(())
     }
+}
+
+pub enum Reliability {
+    /// This message:
+    /// - May not arrive
+    /// - May not arrive in order
+    Unreliable,
+    /// This message:
+    /// - May not arrive
+    /// - Is dropped if arriving later than other messages
+    Sequenced,
 }
 
 pub struct EventsIter<'a> {

@@ -9,20 +9,20 @@ pub struct Header {
 }
 
 impl Header {
-    pub const DATA_SIZE: usize = 5;
+    pub const START_OFFSET: usize = 5;
 
     pub fn extract(mut data: Vec<u8>, protocol_id: u32) -> Option<(Self, Vec<u8>)> {
-        let header_start = data.len()-Self::DATA_SIZE;
+        let start = data.len() - Self::START_OFFSET;
 
         // Verify the protocol ID, if it's not right, skip this packet
-        let client_protocol_id = LittleEndian::read_u32(&data[header_start..header_start+4]);
+        let client_protocol_id = LittleEndian::read_u32(&data[start..start+4]);
         if client_protocol_id != protocol_id { return None }
 
         // The remaining byte is message class
-        let class = PacketClass::from_u8(data[header_start+4])?;
+        let class = PacketClass::from_u8(data[start+4])?;
 
         // Hide the header
-        data.resize(header_start, 0);
+        data.resize(start, 0);
 
         Some((Header {
             class,
@@ -43,7 +43,35 @@ impl Header {
 #[derive(FromPrimitive, ToPrimitive, PartialEq, Debug)]
 pub enum PacketClass {
     Heartbeat,
-    Message,
+    UnreliableMessage,
+    SequencedMessage,
+}
+
+#[derive(Debug)]
+pub struct SequencedHeader {
+    // TODO: This can reliably be much lower if our sequencing test takes into account wrapping
+    pub packet_number: u32,
+}
+
+impl SequencedHeader {
+    pub const START_OFFSET: usize = 4;
+
+    pub fn extract(mut data: Vec<u8>) -> (Self, Vec<u8>) {
+        let start = data.len() - Self::START_OFFSET;
+
+        let packet_number = LittleEndian::read_u32(&data[start..start+4]);
+
+        // Hide the header
+        data.resize(start, 0);
+
+        (SequencedHeader {
+            packet_number,
+        }, data)
+    }
+
+    pub fn write_to(&self, data: &mut Vec<u8>) {
+        data.write_u32::<LittleEndian>(self.packet_number).unwrap();
+    }
 }
 
 #[cfg(test)]

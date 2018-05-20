@@ -154,7 +154,7 @@ fn read(socket: &UdpSocket, worker_incoming: &Sender<PacketData>) {
         // If the packet is too small to have our header, don't even bother sending it
         // Doing this here prevents us from clogging the channel with empty packets in case of a
         // DoS attack
-        if length < Header::DATA_SIZE { return }
+        if length < Header::START_OFFSET { return }
 
         // Resize the vector to hide waste data, then send it over
         buffer.resize(length, 0);
