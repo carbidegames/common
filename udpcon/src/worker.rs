@@ -15,17 +15,22 @@ use {
     MTU_ESTIMATE,
 };
 
-pub type WorkerMessage = (SocketAddr, Vec<u8>);
+type PacketData = (SocketAddr, Vec<u8>);
+
+enum WorkerMessage {
+    Packet(PacketData),
+    Stop,
+}
 
 pub struct PacketWorker {
-    _worker_thread: JoinHandle<()>,
-    incoming: Receiver<WorkerMessage>,
+    worker_thread: JoinHandle<()>,
+    incoming: Receiver<PacketData>,
     outgoing: Sender<WorkerMessage>,
     outgoing_set: SetReadiness,
 }
 
 impl PacketWorker {
-    pub fn new(bind_address: Option<SocketAddr>) -> Self {
+    pub fn start(bind_address: Option<SocketAddr>) -> Self {
         let (worker_incoming, incoming) = mpsc::channel();
         let (outgoing, worker_outgoing) = mpsc::channel();
         let (registration, outgoing_set) = Registration::new2();
@@ -36,27 +41,35 @@ impl PacketWorker {
             );
         });
 
+        // TODO: Clean shutdown, send a close message and wait for the worker thread to close
+
         PacketWorker {
-            _worker_thread: worker_thread,
+            worker_thread,
             incoming,
             outgoing,
             outgoing_set,
         }
     }
 
-    pub fn try_recv(&self) -> Option<WorkerMessage> {
+    pub fn stop(self) {
+        self.outgoing.send(WorkerMessage::Stop).unwrap();
+        self.outgoing_set.set_readiness(Ready::readable()).unwrap();
+        self.worker_thread.join().unwrap();
+    }
+
+    pub fn try_recv(&self) -> Option<(SocketAddr, Vec<u8>)> {
         self.incoming.try_recv().ok()
     }
 
     pub fn send(&self, target: SocketAddr, data: Vec<u8>) {
-        self.outgoing.send((target, data)).unwrap();
+        self.outgoing.send(WorkerMessage::Packet((target, data))).unwrap();
         self.outgoing_set.set_readiness(Ready::readable()).unwrap();
     }
 }
 
 fn worker_runtime(
     bind_address: Option<SocketAddr>,
-    worker_outgoing: Receiver<WorkerMessage>, worker_incoming: Sender<WorkerMessage>,
+    worker_outgoing: Receiver<WorkerMessage>, worker_incoming: Sender<PacketData>,
     registration: Registration, worker_set: SetReadiness,
 ) {
     const SOCKET: Token = Token(0);
@@ -100,7 +113,12 @@ fn worker_runtime(
                     worker_set.set_readiness(Ready::empty()).unwrap();
 
                     while let Some(message) = worker_outgoing.try_recv().ok() {
-                        waiting_sends.push_back(message);
+                        match message {
+                            WorkerMessage::Packet(data) =>
+                                waiting_sends.push_back(data),
+                            WorkerMessage::Stop =>
+                                return,
+                        }
                     }
 
                     // Make sure we're listening to write events now so we can send out the data
@@ -113,7 +131,7 @@ fn worker_runtime(
     }
 }
 
-fn write(socket: &UdpSocket, waiting_sends: &mut VecDeque<WorkerMessage>) {
+fn write(socket: &UdpSocket, waiting_sends: &mut VecDeque<PacketData>) {
     while let Some((target, data)) = waiting_sends.pop_front() {
         // This is verified by the send function, but just in case something went wrong
         assert!(data.len() <= MTU_ESTIMATE);
@@ -129,7 +147,7 @@ fn write(socket: &UdpSocket, waiting_sends: &mut VecDeque<WorkerMessage>) {
     }
 }
 
-fn read(socket: &UdpSocket, worker_incoming: &Sender<WorkerMessage>) {
+fn read(socket: &UdpSocket, worker_incoming: &Sender<PacketData>) {
     let mut buffer = vec![0; MTU_ESTIMATE];
 
     while let Ok((length, from)) = socket.recv_from(&mut buffer) {

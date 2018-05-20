@@ -27,7 +27,7 @@ impl Peer {
         // Get our protocol identifier from the caller-friendly string
         let protocol_id = crc32::checksum_ieee(protocol.as_bytes());
 
-        let worker = PacketWorker::new(bind_address);
+        let worker = PacketWorker::start(bind_address);
 
         Peer {
             protocol_id,
@@ -36,6 +36,10 @@ impl Peer {
             queued_events: VecDeque::new(),
             connections: HashMap::new(),
         }
+    }
+
+    pub fn stop(self) {
+        self.worker.stop()
     }
 
     pub fn connect(&mut self, target: SocketAddr) {
@@ -163,9 +167,9 @@ impl<'a> Iterator for EventsIter<'a> {
 
 #[derive(Debug)]
 pub enum Event {
-    Message { source: SocketAddr, data: Vec<u8> },
     NewPeer { address: SocketAddr },
     PeerTimedOut { address: SocketAddr },
+    Message { source: SocketAddr, data: Vec<u8> },
 }
 
 struct PeerConnection {
