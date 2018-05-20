@@ -1,3 +1,12 @@
+extern crate alga;
+extern crate ggez;
+#[macro_use] extern crate gfx;
+extern crate gfx_device_gl;
+extern crate nalgebra;
+extern crate image;
+extern crate lagato;
+extern crate blockengine;
+
 use {
     std::io::{Read},
 
@@ -9,16 +18,15 @@ use {
         traits::{FactoryExt},
         texture::{SamplerInfo, Kind, Mipmap, AaMode, FilterMethod, WrapMode},
         handle::{Buffer},
-        self, PipelineState, Slice, Factory, VertexBuffer, ConstantBuffer, TextureSampler,
+        PipelineState, Slice, Factory, VertexBuffer, ConstantBuffer, TextureSampler,
         RenderTarget, DepthTarget,
     },
     gfx_device_gl::{Resources},
     nalgebra::{Vector2, Point3, Vector3, Matrix4},
-    image::{self},
 
     lagato::{camera::{RenderCamera}, grid::{Voxels}},
 
-    Chunk,
+    blockengine::{Chunk},
 };
 
 type ColorFormat = gfx::format::Srgba8;
@@ -54,9 +62,8 @@ impl Renderer {
         let mut reader = ctx.filesystem.open("/dirt.png").unwrap();
         reader.read_to_end(&mut buffer).unwrap();
 
-        let color_view = graphics::get_screen_render_target(ctx);
-        let depth_view = graphics::get_depth_view(ctx);
-        let factory = graphics::get_factory(ctx);
+        let (factory, _device, _encoder, depth_view, color_view) =
+            graphics::get_gfx_objects(ctx);
 
         // Create a texture for the voxels
         let image = image::load_from_memory(&buffer).unwrap().to_rgba();
@@ -100,7 +107,7 @@ impl Renderer {
     }
 
     pub fn draw(
-        &mut self, ctx: &mut Context, camera: &RenderCamera, chunks: &Vec<Chunk>
+        &mut self, ctx: &mut Context, camera: &RenderCamera, chunks: &Vec<RenderChunk>
     ) -> GameResult<()> {
         graphics::set_background_color(ctx, (10, 10, 15).into());
         graphics::clear(ctx);
@@ -118,8 +125,10 @@ impl Renderer {
                 self.data.vbuf = chunk.mesh.vbuf.clone();
 
                 let model = Matrix4::new_translation(&Vector3::new(
-                    chunk.position.x as f32 * 16.0, 0.0, chunk.position.y as f32 * 16.0)
-                );
+                    chunk.data.position.x as f32 * 16.0,
+                    0.0,
+                    chunk.data.position.y as f32 * 16.0,
+                ));
                 let transform = camera * model;
                 let locals = Locals {
                     transform: transform.into(),
@@ -238,4 +247,9 @@ fn add_plane_vertices(
 
 fn nvtp(v: Point3<f32>) -> [f32; 4] {
     [v.x, v.y, v.z, 1.0]
+}
+
+pub struct RenderChunk {
+    pub data: Chunk,
+    pub mesh: VoxelsMesh,
 }

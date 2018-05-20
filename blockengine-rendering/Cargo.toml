@@ -1,9 +1,14 @@
 [package]
-name = "blockengine"
+name = "blockengine-rendering"
 version = "0.1.0"
 authors = ["Layl <LaylConway@users.noreply.github.com>"]
 
 [dependencies]
 alga = "0.5"
+ggez = "0.4"
+gfx = "0.17"
+gfx_device_gl = "0.15"
 nalgebra = { version = "0.14", features = ["serde-serialize"] }
+image = "0.19"
 lagato = { path = "../lagato" }
+blockengine = { path = "../blockengine" }
