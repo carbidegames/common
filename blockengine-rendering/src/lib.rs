@@ -107,7 +107,7 @@ impl Renderer {
     }
 
     pub fn draw(
-        &mut self, ctx: &mut Context, camera: &RenderCamera, chunks: &Vec<RenderChunk>
+        &mut self, ctx: &mut Context, camera: &RenderCamera, chunks: &Vec<Chunk<VoxelsMesh>>
     ) -> GameResult<()> {
         graphics::set_background_color(ctx, (10, 10, 15).into());
         graphics::clear(ctx);
@@ -122,12 +122,12 @@ impl Renderer {
             let camera = camera.world_to_clip_matrix(Vector2::new(window_width, window_height));
 
             for chunk in chunks {
-                self.data.vbuf = chunk.mesh.vbuf.clone();
+                self.data.vbuf = chunk.data.vbuf.clone();
 
                 let model = Matrix4::new_translation(&Vector3::new(
-                    chunk.data.position.x as f32 * 16.0,
+                    chunk.position.x as f32 * 16.0,
                     0.0,
-                    chunk.data.position.y as f32 * 16.0,
+                    chunk.position.y as f32 * 16.0,
                 ));
                 let transform = camera * model;
                 let locals = Locals {
@@ -135,7 +135,7 @@ impl Renderer {
                 };
                 encoder.update_constant_buffer(&self.data.locals, &locals);
 
-                encoder.draw(&chunk.mesh.slice, &self.pso, &self.data);
+                encoder.draw(&chunk.data.slice, &self.pso, &self.data);
             }
 
             encoder.flush(device);
@@ -247,9 +247,4 @@ fn add_plane_vertices(
 
 fn nvtp(v: Point3<f32>) -> [f32; 4] {
     [v.x, v.y, v.z, 1.0]
-}
-
-pub struct RenderChunk {
-    pub data: Chunk,
-    pub mesh: VoxelsMesh,
 }

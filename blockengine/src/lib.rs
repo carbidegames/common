@@ -7,7 +7,9 @@ use {
     lagato::grid::{Voxels},
 };
 
-pub struct Chunk {
+pub struct Chunk<D> {
     pub position: Point2<i32>,
     pub voxels: Voxels<bool>,
+    /// Additional game/side specific chunk data.
+    pub data: D,
 }
