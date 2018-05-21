@@ -18,7 +18,7 @@ pub struct Peer {
 
     queued_events: VecDeque<Event>,
     connections: HashMap<SocketAddr, PeerConnection>,
-    next_packet_number: u32,
+    next_packet_number: u16,
 }
 
 impl Peer {
@@ -59,7 +59,7 @@ impl Peer {
             Reliability::Unreliable => PacketClass::UnreliableMessage,
             Reliability::Sequenced => {
                 let sequenced_header = SequencedHeader { packet_number: self.next_packet_number };
-                self.next_packet_number += 1;
+                self.next_packet_number = self.next_packet_number.wrapping_add(1);
                 sequenced_header.write_to(&mut data);
 
                 PacketClass::SequencedMessage
@@ -99,8 +99,10 @@ impl Peer {
 
                         // Check if we should drop this packet
                         let connection = self.connections.get_mut(&source).unwrap();
-                        if sequenced_header.packet_number <=
-                            connection.last_received_packet_number {
+                        if !sequence_greater_than(
+                            sequenced_header.packet_number,
+                            connection.last_received_packet_number,
+                        ) {
                             continue
                         }
                         connection.last_received_packet_number = sequenced_header.packet_number;
@@ -224,5 +226,10 @@ pub enum Event {
 struct PeerConnection {
     last_received: Instant,
     last_sent: Instant,
-    last_received_packet_number: u32,
+    last_received_packet_number: u16,
+}
+
+fn sequence_greater_than(previous: u16, next: u16) -> bool {
+    ( ( previous > next ) && ( previous - next <= 32768 ) ) ||
+    ( ( previous < next ) && ( next - previous  > 32768 ) )
 }

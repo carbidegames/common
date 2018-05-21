@@ -49,17 +49,16 @@ pub enum PacketClass {
 
 #[derive(Debug)]
 pub struct SequencedHeader {
-    // TODO: This can reliably be much lower if our sequencing test takes into account wrapping
-    pub packet_number: u32,
+    pub packet_number: u16,
 }
 
 impl SequencedHeader {
-    pub const START_OFFSET: usize = 4;
+    pub const START_OFFSET: usize = 2;
 
     pub fn extract(mut data: Vec<u8>) -> (Self, Vec<u8>) {
         let start = data.len() - Self::START_OFFSET;
 
-        let packet_number = LittleEndian::read_u32(&data[start..start+4]);
+        let packet_number = LittleEndian::read_u16(&data[start..start+2]);
 
         // Hide the header
         data.resize(start, 0);
@@ -70,7 +69,7 @@ impl SequencedHeader {
     }
 
     pub fn write_to(&self, data: &mut Vec<u8>) {
-        data.write_u32::<LittleEndian>(self.packet_number).unwrap();
+        data.write_u16::<LittleEndian>(self.packet_number).unwrap();
     }
 }
 
