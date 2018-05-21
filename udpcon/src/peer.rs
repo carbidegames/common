@@ -19,7 +19,6 @@ pub struct Peer {
     queued_events: VecDeque<Event>,
     connections: HashMap<SocketAddr, PeerConnection>,
     next_packet_number: u32,
-    last_received_packet_number: u32,
 }
 
 impl Peer {
@@ -38,7 +37,6 @@ impl Peer {
             queued_events: VecDeque::new(),
             connections: HashMap::new(),
             next_packet_number: 1,
-            last_received_packet_number: 0,
         }
     }
 
@@ -100,10 +98,12 @@ impl Peer {
                         let (sequenced_header, data) = SequencedHeader::extract(data);
 
                         // Check if we should drop this packet
-                        if sequenced_header.packet_number <= self.last_received_packet_number {
+                        let connection = self.connections.get_mut(&source).unwrap();
+                        if sequenced_header.packet_number <=
+                            connection.last_received_packet_number {
                             continue
                         }
-                        self.last_received_packet_number = sequenced_header.packet_number;
+                        connection.last_received_packet_number = sequenced_header.packet_number;
 
                         self.queued_events.push_back(Event::Message { source, data });
                     },
@@ -130,6 +130,7 @@ impl Peer {
             self.connections.insert(source, PeerConnection {
                 last_received: now,
                 last_sent: now - Duration::new(10, 0),
+                last_received_packet_number: 0,
             });
             self.queued_events.push_back(Event::NewPeer { address: source })
         }
@@ -223,4 +224,5 @@ pub enum Event {
 struct PeerConnection {
     last_received: Instant,
     last_sent: Instant,
+    last_received_packet_number: u32,
 }
