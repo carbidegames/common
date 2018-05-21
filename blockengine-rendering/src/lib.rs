@@ -126,8 +126,8 @@ impl Renderer {
 
                 let model = Matrix4::new_translation(&Vector3::new(
                     chunk.position.x as f32 * 16.0,
-                    0.0,
                     chunk.position.y as f32 * 16.0,
+                    chunk.position.z as f32 * 16.0,
                 ));
                 let transform = camera * model;
                 let locals = Locals {

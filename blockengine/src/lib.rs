@@ -3,12 +3,12 @@ extern crate nalgebra;
 extern crate lagato;
 
 use {
-    nalgebra::{Point2},
+    nalgebra::{Point3},
     lagato::grid::{Voxels},
 };
 
 pub struct Chunk<D> {
-    pub position: Point2<i32>,
+    pub position: Point3<i32>,
     pub voxels: Voxels<bool>,
     /// Additional game/side specific chunk data.
     pub data: D,
