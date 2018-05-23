@@ -14,3 +14,12 @@ pub use self::{
     renderer::{Renderer},
     mesh::{VoxelsMesh},
 };
+
+use {
+    nalgebra::{Point3},
+};
+
+pub struct Object {
+    pub position: Point3<f32>,
+    pub mesh: VoxelsMesh,
+}

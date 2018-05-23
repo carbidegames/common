@@ -12,14 +12,12 @@ use {
         RenderTarget, DepthTarget,
     },
     gfx_device_gl::{Resources},
-    nalgebra::{Vector2, Vector3, Matrix4},
+    nalgebra::{Vector2, Matrix4},
     image,
 
     lagato::{camera::{RenderCamera}},
 
-    blockengine::{Chunk},
-
-    VoxelsMesh,
+    Object,
 };
 
 type ColorFormat = gfx::format::Srgba8;
@@ -100,8 +98,8 @@ impl Renderer {
     }
 
     pub fn draw(
-        &mut self, ctx: &mut Context, camera: &RenderCamera,
-        chunks: &Vec<Chunk<VoxelsMesh>>/*, block_indicator: Option<Vector2<i32>>, */
+        &mut self, ctx: &mut Context,
+        camera: &RenderCamera, objects: &Vec<Object>,
     ) -> GameResult<()> {
         graphics::set_background_color(ctx, (10, 10, 15).into());
         graphics::clear(ctx);
@@ -115,21 +113,17 @@ impl Renderer {
 
             let camera = camera.world_to_clip_matrix(Vector2::new(window_width, window_height));
 
-            for chunk in chunks {
-                self.data.vbuf = chunk.data.vbuf.clone();
+            for object in objects {
+                self.data.vbuf = object.mesh.vbuf.clone();
 
-                let model = Matrix4::new_translation(&Vector3::new(
-                    chunk.position.x as f32 * 16.0,
-                    chunk.position.y as f32 * 16.0,
-                    chunk.position.z as f32 * 16.0,
-                ));
+                let model = Matrix4::new_translation(&object.position.coords);
                 let transform = camera * model;
                 let locals = Locals {
                     transform: transform.into(),
                 };
                 encoder.update_constant_buffer(&self.data.locals, &locals);
 
-                encoder.draw(&chunk.data.slice, &self.pso, &self.data);
+                encoder.draw(&object.mesh.slice, &self.pso, &self.data);
             }
 
             encoder.flush(device);
