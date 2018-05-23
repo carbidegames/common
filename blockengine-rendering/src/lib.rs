@@ -12,7 +12,7 @@ mod renderer;
 
 pub use self::{
     renderer::{Renderer},
-    mesh::{VoxelsMesh},
+    mesh::{Mesh, triangulate_voxels},
 };
 
 use {
@@ -21,5 +21,5 @@ use {
 
 pub struct Object {
     pub position: Point3<f32>,
-    pub mesh: VoxelsMesh,
+    pub mesh: Mesh,
 }

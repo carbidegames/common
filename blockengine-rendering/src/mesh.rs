@@ -16,34 +16,36 @@ use {
     renderer::{Vertex},
 };
 
-pub struct VoxelsMesh {
+pub struct Mesh {
     pub vbuf: Buffer<Resources, Vertex>,
     pub slice: Slice<Resources>,
 }
 
-impl VoxelsMesh {
-    pub fn triangulate(ctx: &mut Context, voxels: &Voxels<bool>) -> Self {
+impl Mesh {
+    pub fn new(ctx: &mut Context, vertices: &Vec<Vertex>) -> Self {
         let factory = graphics::get_factory(ctx);
-
-        // Add some cubes
-        let mut vertices = Vec::new();
-        for position in voxels.iter_pos() {
-            if *voxels.get(position).unwrap() {
-                add_cube_vertices(
-                    &mut vertices,
-                    Vector3::new(position.x as f32, position.y as f32, position.z as f32)
-                );
-            }
-        }
-
-        // Create vertex buffer
-        let (vbuf, slice) = factory.create_vertex_buffer_with_slice(&vertices, ());
+        let (vbuf, slice) = factory.create_vertex_buffer_with_slice(vertices, ());
 
         Self {
             vbuf,
             slice,
         }
     }
+}
+
+pub fn triangulate_voxels(voxels: &Voxels<bool>) -> Vec<Vertex> {
+    // Add some cubes
+    let mut vertices = Vec::new();
+    for position in voxels.iter_pos() {
+        if *voxels.get(position).unwrap() {
+            add_cube_vertices(
+                &mut vertices,
+                Vector3::new(position.x as f32, position.y as f32, position.z as f32)
+            );
+        }
+    }
+
+    vertices
 }
 
 fn add_cube_vertices(vertices: &mut Vec<Vertex>, offset: Vector3<f32>) {
