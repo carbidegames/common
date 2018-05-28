@@ -80,7 +80,7 @@ mod tests {
     #[test]
     fn header_serialization_works_two_ways() {
         let header = Header {
-            class: PacketClass::Message,
+            class: PacketClass::UnreliableMessage,
         };
         let payload = vec![55; 32];
         let mut data = payload.clone();

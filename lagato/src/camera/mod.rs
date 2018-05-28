@@ -26,10 +26,14 @@ impl PitchYawCamera {
         self.pitch = self.pitch.max(-limit).min(limit);
     }
 
+    pub fn to_quaternion(&self) -> UnitQuaternion<f32> {
+        UnitQuaternion::from_euler_angles(self.pitch, self.yaw, 0.0)
+    }
+
     pub fn to_render_camera(&self, position: Point3<f32>) -> RenderCamera {
         RenderCamera::new(
             position,
-            UnitQuaternion::from_euler_angles(self.pitch, self.yaw, 0.0),
+            self.to_quaternion(),
         )
     }
 }

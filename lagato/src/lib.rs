@@ -41,7 +41,7 @@ impl DirectionalInput {
     }
 }
 
-pub fn rotate_vector(value: &mut Vector2<f32>, radians: f32) {
+pub fn rotate_vector(mut value: Vector2<f32>, radians: f32) -> Vector2<f32> {
     let sin = radians.sin();
     let cos = radians.cos();
 
@@ -50,4 +50,6 @@ pub fn rotate_vector(value: &mut Vector2<f32>, radians: f32) {
 
     value.x = (cos * tx) - (sin * ty);
     value.y = (sin * tx) + (cos * ty);
+
+    value
 }

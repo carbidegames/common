@@ -31,6 +31,12 @@ impl Mesh {
             slice,
         }
     }
+
+    pub fn cube(ctx: &mut Context) -> Self {
+        let mut vertices = Vec::new();
+        add_cube_vertices(&mut vertices, Vector3::new(0.0, 0.0, 0.0));
+        Self::new(ctx, &vertices)
+    }
 }
 
 pub fn triangulate_voxels(voxels: &Voxels<bool>) -> Vec<Vertex> {
