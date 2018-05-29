@@ -1,23 +1,19 @@
 use {
-    std::io::{Read},
-
     ggez::{
-        Context, GameResult,
         graphics,
+        Context, GameResult,
     },
     gfx::{
         traits::{FactoryExt},
-        texture::{SamplerInfo, Kind, Mipmap, AaMode, FilterMethod, WrapMode},
-        self, PipelineState, Factory, VertexBuffer, ConstantBuffer, TextureSampler,
+        self, PipelineState, VertexBuffer, ConstantBuffer, TextureSampler,
         RenderTarget, DepthTarget,
     },
     gfx_device_gl::{Resources},
     nalgebra::{Vector2, Matrix4},
-    image,
 
     lagato::{camera::{RenderCamera}},
 
-    Object,
+    Object, Texture,
 };
 
 type ColorFormat = gfx::format::Srgba8;
@@ -48,28 +44,9 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(ctx: &mut Context) -> Self {
-        let mut buffer = Vec::new();
-        let mut reader = ctx.filesystem.open("/dirt.png").unwrap();
-        reader.read_to_end(&mut buffer).unwrap();
-
+    pub fn new(ctx: &mut Context, block_texture: &Texture) -> Self {
         let (factory, _device, _encoder, depth_view, color_view) =
             graphics::get_gfx_objects(ctx);
-
-        // Create a texture for the voxels
-        let image = image::load_from_memory(&buffer).unwrap().to_rgba();
-        let image_dimensions = image.dimensions();
-
-        let data: [&[u8]; 1] = [&image.into_raw()];
-        let (_, texture_view) = factory
-            .create_texture_immutable_u8::<gfx::format::Srgba8>(
-                Kind::D2(image_dimensions.0 as u16, image_dimensions.1 as u16, AaMode::Single),
-                Mipmap::Provided,
-                &data,
-            )
-            .unwrap();
-
-        let sinfo = SamplerInfo::new(FilterMethod::Bilinear, WrapMode::Clamp);
 
         // Create pipeline state object
         let vs = include_bytes!("s_vertex.glsl");
@@ -86,7 +63,7 @@ impl Renderer {
         let data = pipe::Data {
             vbuf: factory.create_vertex_buffer(&[]),
             locals: factory.create_constant_buffer(1),
-            texture: (texture_view, factory.create_sampler(sinfo)),
+            texture: (block_texture.view.clone(), block_texture.sampler.clone()),
             out_color: color_view,
             out_depth: depth_view,
         };

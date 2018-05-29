@@ -9,10 +9,12 @@ extern crate blockengine;
 
 mod mesh;
 mod renderer;
+mod texture;
 
 pub use self::{
     renderer::{Renderer},
     mesh::{Mesh, triangulate_voxels},
+    texture::{Texture},
 };
 
 use {
