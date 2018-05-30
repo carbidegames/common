@@ -3,6 +3,7 @@ extern crate nalgebra;
 extern crate lagato;
 
 use {
+    std::f32::{NAN},
     nalgebra::{Point3, Vector3},
     lagato::grid::{Voxels},
 };
@@ -34,9 +35,12 @@ pub fn cast_ray(
 
     let mut normal = Vector3::new(0.0, 0.0, 0.0);
 
-    // Avoids an infinite loop.
+    // Avoids an infinite loop
     if direction.x == 0.0 && direction.y == 0.0 && direction.z == 0.0 {
-        panic!("Raycast in zero direction!")
+        panic!("Raycast in zero direction")
+    }
+    if direction.x == NAN || direction.y == NAN || direction.z == NAN {
+        panic!("Raycast in NaN direction")
     }
 
     // Rescale from units of 1 cube-edge to units of 'direction' so we can
