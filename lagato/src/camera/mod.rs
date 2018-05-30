@@ -26,14 +26,14 @@ impl PitchYawCamera {
         self.pitch = self.pitch.max(-limit).min(limit);
     }
 
-    pub fn to_quaternion(&self) -> UnitQuaternion<f32> {
+    pub fn to_rotation(&self) -> UnitQuaternion<f32> {
         UnitQuaternion::from_euler_angles(self.pitch, self.yaw, 0.0)
     }
 
     pub fn to_render_camera(&self, position: Point3<f32>) -> RenderCamera {
         RenderCamera::new(
             position,
-            self.to_quaternion(),
+            self.to_rotation(),
         )
     }
 }
@@ -55,13 +55,18 @@ impl OrbitingCamera {
         }
     }
 
-    pub fn to_render_camera(&self) -> RenderCamera {
-        let rotation = Matrix4::from_euler_angles(self.pitch, self.yaw, 0.0);
+    pub fn to_position_rotation(&self) -> (Point3<f32>, UnitQuaternion<f32>) {
+        let rotation = UnitQuaternion::from_euler_angles(self.pitch, self.yaw, 0.0);
         let distance = rotation.transform_vector(&Vector3::new(0.0, 0.0, self.distance));
+        (self.focus + distance, rotation)
+    }
+
+    pub fn to_render_camera(&self) -> RenderCamera {
+        let (position, rotation) = self.to_position_rotation();
 
         RenderCamera::new(
-            self.focus + distance,
-            UnitQuaternion::from_euler_angles(self.pitch, self.yaw, 0.0),
+            position,
+            rotation,
         )
     }
 }
