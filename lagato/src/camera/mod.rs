@@ -1,15 +1,17 @@
 use {
-    alga::linear::{Transformation},
-    nalgebra::{Vector2, Point3, Vector3, Matrix4, UnitQuaternion, Perspective3},
+    cgmath::{
+        EuclideanSpace, SquareMatrix, Rotation3,
+        Vector2, Point3, Vector3, Matrix4, Quaternion, PerspectiveFov, Rad,
+    },
 };
 
 pub struct PitchYawCamera {
-    pub pitch: f32,
-    pub yaw: f32,
+    pub pitch: Rad<f32>,
+    pub yaw: Rad<f32>,
 }
 
 impl PitchYawCamera {
-    pub fn new(pitch: f32, yaw: f32) -> Self {
+    pub fn new(pitch: Rad<f32>, yaw: Rad<f32>) -> Self {
         PitchYawCamera {
             pitch,
             yaw,
@@ -19,15 +21,16 @@ impl PitchYawCamera {
     pub fn handle_mouse_motion(&mut self, relative: Vector2<i32>) {
         let sensitivity = 0.0025;
 
-        self.yaw += relative.x as f32 * -sensitivity;
-        self.pitch += relative.y as f32 * -sensitivity;
+        self.yaw.0 += relative.x as f32 * -sensitivity;
+        self.pitch.0 += relative.y as f32 * -sensitivity;
 
         let limit = ::std::f32::consts::PI * 0.475;
-        self.pitch = self.pitch.max(-limit).min(limit);
+        self.pitch.0 = self.pitch.0.max(-limit).min(limit);
     }
 
-    pub fn to_rotation(&self) -> UnitQuaternion<f32> {
-        UnitQuaternion::from_euler_angles(self.pitch, self.yaw, 0.0)
+    pub fn to_rotation(&self) -> Quaternion<f32> {
+        Quaternion::from_angle_y(self.yaw) *
+        Quaternion::from_angle_x(self.pitch)
     }
 
     pub fn to_render_camera(&self, position: Point3<f32>) -> RenderCamera {
@@ -40,13 +43,13 @@ impl PitchYawCamera {
 
 pub struct OrbitingCamera {
     pub focus: Point3<f32>,
-    pub pitch: f32,
-    pub yaw: f32,
+    pub pitch: Rad<f32>,
+    pub yaw: Rad<f32>,
     pub distance: f32,
 }
 
 impl OrbitingCamera {
-    pub fn new(focus: Point3<f32>, pitch: f32, yaw: f32, distance: f32) -> Self {
+    pub fn new(focus: Point3<f32>, pitch: Rad<f32>, yaw: Rad<f32>, distance: f32) -> Self {
         OrbitingCamera {
             focus,
             pitch,
@@ -55,9 +58,11 @@ impl OrbitingCamera {
         }
     }
 
-    pub fn to_position_rotation(&self) -> (Point3<f32>, UnitQuaternion<f32>) {
-        let rotation = UnitQuaternion::from_euler_angles(self.pitch, self.yaw, 0.0);
-        let distance = rotation.transform_vector(&Vector3::new(0.0, 0.0, self.distance));
+    pub fn to_position_rotation(&self) -> (Point3<f32>, Quaternion<f32>) {
+        let rotation =
+            Quaternion::from_angle_y(self.yaw) *
+            Quaternion::from_angle_x(self.pitch);
+        let distance = rotation * Vector3::new(0.0, 0.0, self.distance);
         (self.focus + distance, rotation)
     }
 
@@ -73,36 +78,41 @@ impl OrbitingCamera {
 
 pub struct RenderCamera {
     pub position: Point3<f32>,
-    pub rotation: UnitQuaternion<f32>,
+    pub rotation: Quaternion<f32>,
 }
 
 impl RenderCamera {
-    pub fn new(position: Point3<f32>, rotation: UnitQuaternion<f32>) -> Self {
+    pub fn new(position: Point3<f32>, rotation: Quaternion<f32>) -> Self {
         RenderCamera {
             position,
             rotation,
         }
     }
 
-    pub fn view_to_world_matrix(&self) -> Matrix4<f32> {
-        Matrix4::new_translation(&self.position.coords) * self.rotation.to_homogeneous()
+    pub fn view_matrix_inverse(&self) -> Matrix4<f32> {
+        let rotation: Matrix4<f32> = self.rotation.into();
+        Matrix4::from_translation(self.position.to_vec()) * rotation
     }
 
-    pub fn view_to_clip_matrix(&self, window_size: Vector2<u32>) -> Matrix4<f32> {
+    pub fn projection_matrix(&self, window_size: Vector2<u32>) -> Matrix4<f32> {
         let h_fov = ::std::f32::consts::PI / 2.0; // 90 deg
         let v_fov = horizontal_to_vertical_fov(h_fov, window_size);
 
-        // Aspect ratio, FOV, znear, zfar
         let ratio = window_size.x as f32 / window_size.y as f32;
-        let projection = Perspective3::new(ratio, v_fov, 0.2, 1000.0);
+        let projection = PerspectiveFov {
+            fovy: Rad(v_fov),
+            aspect: ratio,
+            near: 0.2,
+            far: 1000.0,
+        };
 
-        projection.as_matrix().clone()
+        projection.into()
     }
 
-    pub fn world_to_clip_matrix(&self, window_size: Vector2<u32>) -> Matrix4<f32> {
-        let projection = self.view_to_clip_matrix(window_size);
-        let view = self.view_to_world_matrix();
-        let transform = projection * view.try_inverse().unwrap();
+    pub fn model_view_matrix(&self, window_size: Vector2<u32>) -> Matrix4<f32> {
+        let projection = self.projection_matrix(window_size);
+        let view = self.view_matrix_inverse();
+        let transform = projection * view.invert().unwrap();
 
         transform
     }

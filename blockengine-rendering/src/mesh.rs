@@ -9,7 +9,7 @@ use {
         Slice,
     },
     gfx_device_gl::{Resources},
-    nalgebra::{Point3, Vector3},
+    cgmath::{Point3, Vector3},
 
     lagato::{grid::{Voxels}},
 

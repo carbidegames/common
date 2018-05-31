@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["Layl <LaylConway@users.noreply.github.com>"]
 
 [dependencies]
-alga = "0.5"
-nalgebra = { version = "0.14", features = ["serde-serialize"] }
+cgmath = { version = "0.16", features = ["serde"] }
 serde = "1"
 serde_derive = "1"

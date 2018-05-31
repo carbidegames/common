@@ -1,8 +1,7 @@
-extern crate alga;
+extern crate cgmath;
 extern crate ggez;
 #[macro_use] extern crate gfx;
 extern crate gfx_device_gl;
-extern crate nalgebra;
 extern crate image;
 extern crate lagato;
 extern crate blockengine;
@@ -18,7 +17,7 @@ pub use self::{
 };
 
 use {
-    nalgebra::{Point3},
+    cgmath::{Point3},
 };
 
 pub struct Object {

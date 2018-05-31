@@ -9,7 +9,7 @@ use {
         RenderTarget, DepthTarget,
     },
     gfx_device_gl::{Resources},
-    nalgebra::{Vector2, Matrix4},
+    cgmath::{EuclideanSpace, Vector2, Matrix4},
 
     lagato::{camera::{RenderCamera}},
 
@@ -88,12 +88,12 @@ impl Renderer {
             encoder.clear(&self.data.out_color, [0.1, 0.1, 0.1, 1.0]);
             encoder.clear_depth(&self.data.out_depth, 1.0);
 
-            let camera = camera.world_to_clip_matrix(Vector2::new(window_width, window_height));
+            let camera = camera.model_view_matrix(Vector2::new(window_width, window_height));
 
             for object in objects {
                 self.data.vbuf = object.mesh.vbuf.clone();
 
-                let model = Matrix4::new_translation(&object.position.coords);
+                let model = Matrix4::from_translation(object.position.to_vec());
                 let transform = camera * model;
                 let locals = Locals {
                     transform: transform.into(),

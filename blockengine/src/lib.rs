@@ -1,10 +1,9 @@
-extern crate alga;
-extern crate nalgebra;
+extern crate cgmath;
 extern crate lagato;
 
 use {
     std::f32::{NAN},
-    nalgebra::{Point3, Vector3},
+    cgmath::{Point3, Vector3},
     lagato::grid::{Voxels},
 };
 

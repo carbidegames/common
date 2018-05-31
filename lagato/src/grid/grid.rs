@@ -1,5 +1,5 @@
 use {
-    nalgebra::{Point2},
+    cgmath::{Point2},
 
     grid::{Dim, Dim2, Range, IterRange},
     Event,
@@ -84,7 +84,7 @@ pub enum Error {
 #[cfg(test)]
 mod tests {
     use {
-        nalgebra::{Vector2, Vector3},
+        cgmath::{Vector2, Vector3},
 
         grid::{Grid, Dim2, Dim3},
     };

@@ -1,7 +1,9 @@
 use {
-    nalgebra::{Vector2, Point2, Vector3, Point3},
+    cgmath::{Vector2, Point2, Vector3, Point3},
     serde::{Serialize, de::DeserializeOwned},
 };
+
+// TODO: Check if this can be replaced with cgmath::EuclideanSpace
 
 pub trait Dim {
     type Vector: Serialize + DeserializeOwned + Copy;

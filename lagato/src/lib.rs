@@ -1,5 +1,4 @@
-extern crate alga;
-extern crate nalgebra;
+extern crate cgmath;
 extern crate serde;
 #[macro_use] extern crate serde_derive;
 
@@ -11,7 +10,9 @@ pub use self::{
     event::{Event},
 };
 
-use {nalgebra::{Vector2}};
+use {
+    cgmath::{Vector2, Rad, Angle},
+};
 
 pub struct DirectionalInput {
     pub backward: bool,
@@ -41,7 +42,7 @@ impl DirectionalInput {
     }
 }
 
-pub fn rotate_vector(mut value: Vector2<f32>, radians: f32) -> Vector2<f32> {
+pub fn rotate_vector(mut value: Vector2<f32>, radians: Rad<f32>) -> Vector2<f32> {
     let sin = radians.sin();
     let cos = radians.cos();
 

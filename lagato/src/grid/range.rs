@@ -1,5 +1,5 @@
 use {
-    nalgebra::{Point2, Point3},
+    cgmath::{Point2, Point3},
     grid::{Dim, Dim2, Dim3},
 };
 
