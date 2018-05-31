@@ -3,48 +3,46 @@ extern crate lagato;
 
 use {
     std::f32::{NAN},
-    cgmath::{Point3, Vector3},
-    lagato::grid::{Voxels},
+    cgmath::{Point3, Vector3, InnerSpace},
+    lagato::{camera::{Ray}, grid::{Voxels}},
 };
 
 pub fn cast_ray(
-    origin: Point3<f32>, direction: Vector3<f32>, mut radius: f32, voxels: &Voxels<bool>,
+    ray: &Ray, mut radius: f32, voxels: &Voxels<bool>,
 ) -> Option<(Point3<i32>, Vector3<f32>)> {
     // Cube containing origin point
-    let mut voxel = Point3::new(
-        origin.x.floor() as i32, origin.y.floor() as i32, origin.z.floor() as i32
-    );
+    let mut voxel = ray.origin.map(|v| v.floor() as i32);
 
     // Direction to increment x,y,z when stepping
-    let step = Vector3::new(signum(direction.x), signum(direction.y), signum(direction.z));
+    let step = ray.direction.map(|v| signum(v));
 
     // T when reaching the next voxel on an axis
     let mut t_max = Vector3::new(
-        intbound(origin.x, direction.x),
-        intbound(origin.y, direction.y),
-        intbound(origin.z, direction.z),
+        intbound(ray.origin.x, ray.direction.x),
+        intbound(ray.origin.y, ray.direction.y),
+        intbound(ray.origin.z, ray.direction.z),
     );
 
     // The change in t when taking a step (always positive)
     let t_delta = Vector3::new(
-        step.x as f32 / direction.x,
-        step.y as f32 / direction.y,
-        step.z as f32 / direction.z,
+        step.x as f32 / ray.direction.x,
+        step.y as f32 / ray.direction.y,
+        step.z as f32 / ray.direction.z,
     );
 
     let mut normal = Vector3::new(0.0, 0.0, 0.0);
 
     // Avoids an infinite loop
-    if direction.x == 0.0 && direction.y == 0.0 && direction.z == 0.0 {
+    if ray.direction.x == 0.0 && ray.direction.y == 0.0 && ray.direction.z == 0.0 {
         panic!("Raycast in zero direction")
     }
-    if direction.x == NAN || direction.y == NAN || direction.z == NAN {
+    if ray.direction.x == NAN || ray.direction.y == NAN || ray.direction.z == NAN {
         panic!("Raycast in NaN direction")
     }
 
     // Rescale from units of 1 cube-edge to units of 'direction' so we can
     // compare with 't'
-    radius /= (direction.x*direction.x + direction.y*direction.y + direction.z*direction.z).sqrt();
+    radius /= ray.direction.magnitude();
 
     while is_in_bounds_step(step, voxels.size(), voxel) {
         // If it's solid, we're done

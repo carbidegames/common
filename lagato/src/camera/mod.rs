@@ -1,7 +1,7 @@
 use {
     cgmath::{
-        EuclideanSpace, SquareMatrix, Rotation3,
-        Vector2, Point3, Vector3, Matrix4, Quaternion, PerspectiveFov, Rad,
+        EuclideanSpace, SquareMatrix, Rotation3, Transform, InnerSpace,
+        Point2, Vector2, Point3, Vector3, Matrix4, Quaternion, PerspectiveFov, Rad,
     },
 };
 
@@ -116,9 +116,39 @@ impl RenderCamera {
 
         transform
     }
+
+    pub fn pixel_to_ray(&self, pixel_position: Point2<i32>, window_size: Vector2<u32>) -> Ray {
+        let proj = self.projection_matrix(window_size).invert().unwrap();
+        let view = self.view_matrix_inverse();
+
+        // Get the clip position of the cursor
+        let ray_clip = Vector3::new(
+            (pixel_position.x as f32 / window_size.x as f32) * 2.0 - 1.0,
+            1.0 - (pixel_position.y as f32 / window_size.y as f32) * 2.0,
+            -1.0,
+        );
+
+        // Convert clip cursor to view cursor
+        let mut ray_eye = proj.transform_vector(ray_clip);
+        ray_eye = Vector3::new(ray_eye.x, ray_eye.y, -1.0);
+
+        // Convert view cursor to world cursor
+        let mut ray_world = view.transform_vector(ray_eye);
+        ray_world = ray_world.normalize();
+
+        Ray {
+            origin: self.position,
+            direction: ray_world,
+        }
+    }
 }
 
 fn horizontal_to_vertical_fov(h_fov: f32, window_size: Vector2<u32>) -> f32 {
     let fov_ratio = window_size.y as f32 / window_size.x as f32;
     2.0 * ((h_fov/2.0).tan() * fov_ratio).atan()
+}
+
+pub struct Ray {
+    pub origin: Point3<f32>,
+    pub direction: Vector3<f32>,
 }
