@@ -90,6 +90,10 @@ impl Renderer {
             let camera = camera.model_view_matrix();
 
             for object in objects {
+                if !object.visible {
+                    continue
+                }
+
                 self.data.vbuf = object.mesh.vbuf.clone();
 
                 let model = Matrix4::from_translation(object.position.to_vec());

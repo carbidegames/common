@@ -3,8 +3,6 @@ use {
     serde::{Serialize, de::DeserializeOwned},
 };
 
-// TODO: Check if this can be replaced with cgmath::EuclideanSpace
-
 pub trait Dim {
     type Vector: Serialize + DeserializeOwned + Copy;
     type Point: Serialize + DeserializeOwned + Copy;

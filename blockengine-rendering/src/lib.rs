@@ -22,5 +22,7 @@ use {
 
 pub struct Object {
     pub position: Point3<f32>,
+    pub visible: bool,
+
     pub mesh: Mesh,
 }
