@@ -9,7 +9,7 @@ use {
         RenderTarget, DepthTarget,
     },
     gfx_device_gl::{Resources},
-    cgmath::{EuclideanSpace, Vector2, Matrix4},
+    cgmath::{EuclideanSpace, Matrix4},
 
     lagato::{camera::{RenderCamera}},
 
@@ -80,7 +80,6 @@ impl Renderer {
     ) -> GameResult<()> {
         graphics::set_background_color(ctx, (10, 10, 15).into());
         graphics::clear(ctx);
-        let (window_width, window_height) = graphics::get_size(ctx);
 
         {
             let (_factory, device, encoder, _depthview, _colorview) =
@@ -88,7 +87,7 @@ impl Renderer {
             encoder.clear(&self.data.out_color, [0.1, 0.1, 0.1, 1.0]);
             encoder.clear_depth(&self.data.out_depth, 1.0);
 
-            let camera = camera.model_view_matrix(Vector2::new(window_width, window_height));
+            let camera = camera.model_view_matrix();
 
             for object in objects {
                 self.data.vbuf = object.mesh.vbuf.clone();

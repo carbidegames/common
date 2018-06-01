@@ -33,10 +33,13 @@ impl PitchYawCamera {
         Quaternion::from_angle_x(self.pitch)
     }
 
-    pub fn to_render_camera(&self, position: Point3<f32>) -> RenderCamera {
+    pub fn to_render_camera(
+        &self, position: Point3<f32>, window_size: Vector2<u32>
+    ) -> RenderCamera {
         RenderCamera::new(
             position,
             self.to_rotation(),
+            window_size,
         )
     }
 }
@@ -66,12 +69,13 @@ impl OrbitingCamera {
         (self.focus + distance, rotation)
     }
 
-    pub fn to_render_camera(&self) -> RenderCamera {
+    pub fn to_render_camera(&self, window_size: Vector2<u32>) -> RenderCamera {
         let (position, rotation) = self.to_position_rotation();
 
         RenderCamera::new(
             position,
             rotation,
+            window_size,
         )
     }
 }
@@ -79,13 +83,17 @@ impl OrbitingCamera {
 pub struct RenderCamera {
     pub position: Point3<f32>,
     pub rotation: Quaternion<f32>,
+    pub window_size: Vector2<u32>,
 }
 
 impl RenderCamera {
-    pub fn new(position: Point3<f32>, rotation: Quaternion<f32>) -> Self {
+    pub fn new(
+        position: Point3<f32>, rotation: Quaternion<f32>, window_size: Vector2<u32>,
+    ) -> Self {
         RenderCamera {
             position,
             rotation,
+            window_size,
         }
     }
 
@@ -94,11 +102,11 @@ impl RenderCamera {
         Matrix4::from_translation(self.position.to_vec()) * rotation
     }
 
-    pub fn projection_matrix(&self, window_size: Vector2<u32>) -> Matrix4<f32> {
+    pub fn projection_matrix(&self) -> Matrix4<f32> {
         let h_fov = ::std::f32::consts::PI / 2.0; // 90 deg
-        let v_fov = horizontal_to_vertical_fov(h_fov, window_size);
+        let v_fov = horizontal_to_vertical_fov(h_fov, self.window_size);
 
-        let ratio = window_size.x as f32 / window_size.y as f32;
+        let ratio = self.window_size.x as f32 / self.window_size.y as f32;
         let projection = PerspectiveFov {
             fovy: Rad(v_fov),
             aspect: ratio,
@@ -109,22 +117,22 @@ impl RenderCamera {
         projection.into()
     }
 
-    pub fn model_view_matrix(&self, window_size: Vector2<u32>) -> Matrix4<f32> {
-        let projection = self.projection_matrix(window_size);
+    pub fn model_view_matrix(&self) -> Matrix4<f32> {
+        let projection = self.projection_matrix();
         let view = self.view_matrix_inverse();
         let transform = projection * view.invert().unwrap();
 
         transform
     }
 
-    pub fn pixel_to_ray(&self, pixel_position: Point2<i32>, window_size: Vector2<u32>) -> Ray {
-        let proj = self.projection_matrix(window_size).invert().unwrap();
+    pub fn pixel_to_ray(&self, pixel_position: Point2<i32>) -> Ray {
+        let proj = self.projection_matrix().invert().unwrap();
         let view = self.view_matrix_inverse();
 
         // Get the clip position of the cursor
         let ray_clip = Vector3::new(
-            (pixel_position.x as f32 / window_size.x as f32) * 2.0 - 1.0,
-            1.0 - (pixel_position.y as f32 / window_size.y as f32) * 2.0,
+            (pixel_position.x as f32 / self.window_size.x as f32) * 2.0 - 1.0,
+            1.0 - (pixel_position.y as f32 / self.window_size.y as f32) * 2.0,
             -1.0,
         );
 
