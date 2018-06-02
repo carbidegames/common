@@ -5,15 +5,16 @@ use {
     },
     gfx::{
         traits::{FactoryExt},
-        self, PipelineState, VertexBuffer, ConstantBuffer, TextureSampler,
-        RenderTarget, DepthTarget,
+        handle::{Buffer},
+        self, PipelineState, VertexBuffer, ConstantBuffer, TextureSampler, RenderTarget,
+        DepthTarget,
     },
     gfx_device_gl::{Resources},
     cgmath::{EuclideanSpace, Matrix4},
 
     lagato::{camera::{RenderCamera}},
 
-    Object, Texture,
+    Object,
 };
 
 type ColorFormat = gfx::format::Srgba8;
@@ -39,13 +40,13 @@ gfx_defines!{
 }
 
 pub struct Renderer {
-    data: pipe::Data<Resources>,
     pso: PipelineState<Resources, pipe::Meta>,
+    locals: Buffer<Resources, Locals>,
 }
 
 impl Renderer {
-    pub fn new(ctx: &mut Context, block_texture: &Texture) -> Self {
-        let (factory, _device, _encoder, depth_view, color_view) =
+    pub fn new(ctx: &mut Context) -> Self {
+        let (factory, _device, _encoder, _depth_view, _color_view) =
             graphics::get_gfx_objects(ctx);
 
         // Create pipeline state object
@@ -59,18 +60,11 @@ impl Renderer {
             pipe::new()
         ).unwrap();
 
-        // Bundle all the data together
-        let data = pipe::Data {
-            vbuf: factory.create_vertex_buffer(&[]),
-            locals: factory.create_constant_buffer(1),
-            texture: (block_texture.view.clone(), block_texture.sampler.clone()),
-            out_color: color_view,
-            out_depth: depth_view,
-        };
+        let locals = factory.create_constant_buffer(1);
 
         Renderer {
-            data,
             pso,
+            locals,
         }
     }
 
@@ -82,10 +76,10 @@ impl Renderer {
         graphics::clear(ctx);
 
         {
-            let (_factory, device, encoder, _depthview, _colorview) =
+            let (_factory, device, encoder, depth_view, color_view) =
                 graphics::get_gfx_objects(ctx);
-            encoder.clear(&self.data.out_color, [0.1, 0.1, 0.1, 1.0]);
-            encoder.clear_depth(&self.data.out_depth, 1.0);
+            encoder.clear(&color_view, [0.1, 0.1, 0.1, 1.0]);
+            encoder.clear_depth(&depth_view, 1.0);
 
             let camera = camera.model_view_matrix();
 
@@ -94,16 +88,21 @@ impl Renderer {
                     continue
                 }
 
-                self.data.vbuf = object.mesh.vbuf.clone();
-
                 let model = Matrix4::from_translation(object.position.to_vec());
                 let transform = camera * model;
                 let locals = Locals {
                     transform: transform.into(),
                 };
-                encoder.update_constant_buffer(&self.data.locals, &locals);
+                encoder.update_constant_buffer(&self.locals, &locals);
 
-                encoder.draw(&object.mesh.slice, &self.pso, &self.data);
+                let data = pipe::Data {
+                    vbuf: object.mesh.vbuf.clone(),
+                    locals: self.locals.clone(),
+                    texture: (object.texture.view.clone(), object.texture.sampler.clone()),
+                    out_color: color_view.clone(),
+                    out_depth: depth_view.clone(),
+                };
+                encoder.draw(&object.mesh.slice, &self.pso, &data);
             }
 
             encoder.flush(device);

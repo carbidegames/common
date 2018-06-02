@@ -1,5 +1,8 @@
 use {
-    std::io::{Read},
+    std::{
+        io::{Read},
+        rc::{Rc},
+    },
 
     ggez::{
         graphics,
@@ -20,7 +23,7 @@ pub struct Texture {
 }
 
 impl Texture {
-    pub fn load(ctx: &mut Context, path: &str) -> GameResult<Self> {
+    pub fn load(ctx: &mut Context, path: &str) -> GameResult<Rc<Self>> {
         let mut buffer = Vec::new();
         let mut reader = ctx.filesystem.open(path)?;
         reader.read_to_end(&mut buffer).unwrap();
@@ -44,9 +47,9 @@ impl Texture {
         let sinfo = SamplerInfo::new(FilterMethod::Bilinear, WrapMode::Clamp);
         let sampler = factory.create_sampler(sinfo);
 
-        Ok(Texture {
+        Ok(Rc::new(Texture {
             view,
             sampler,
-        })
+        }))
     }
 }

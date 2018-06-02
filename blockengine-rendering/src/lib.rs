@@ -17,6 +17,7 @@ pub use self::{
 };
 
 use {
+    std::rc::{Rc},
     cgmath::{Point3},
 };
 
@@ -24,5 +25,6 @@ pub struct Object {
     pub position: Point3<f32>,
     pub visible: bool,
 
-    pub mesh: Mesh,
+    pub mesh: Rc<Mesh>,
+    pub texture: Rc<Texture>,
 }

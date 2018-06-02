@@ -1,4 +1,6 @@
 use {
+    std::rc::{Rc},
+
     ggez::{
         Context,
         graphics,
@@ -22,17 +24,17 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn new(ctx: &mut Context, vertices: &Vec<Vertex>) -> Self {
+    pub fn new(ctx: &mut Context, vertices: &Vec<Vertex>) -> Rc<Self> {
         let factory = graphics::get_factory(ctx);
         let (vbuf, slice) = factory.create_vertex_buffer_with_slice(vertices, ());
 
-        Self {
+        Rc::new(Self {
             vbuf,
             slice,
-        }
+        })
     }
 
-    pub fn cube(ctx: &mut Context) -> Self {
+    pub fn cube(ctx: &mut Context) -> Rc<Self> {
         let mut vertices = Vec::new();
         add_cube_vertices(&mut vertices, Vector3::new(0.0, 0.0, 0.0));
         Self::new(ctx, &vertices)
