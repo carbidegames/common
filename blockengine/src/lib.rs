@@ -9,7 +9,7 @@ use {
 
 pub fn cast_ray(
     ray: &Ray, mut radius: f32, voxels: &Voxels<bool>,
-) -> Option<(Point3<i32>, Vector3<f32>)> {
+) -> Option<(Point3<i32>, Vector3<i32>)> {
     // Cube containing origin point
     let mut voxel = ray.origin.map(|v| v.floor() as i32);
 
@@ -30,7 +30,7 @@ pub fn cast_ray(
         step.z as f32 / ray.direction.z,
     );
 
-    let mut normal = Vector3::new(0.0, 0.0, 0.0);
+    let mut normal = Vector3::new(0, 0, 0);
 
     // Avoids an infinite loop
     if ray.direction.x == 0.0 && ray.direction.y == 0.0 && ray.direction.z == 0.0 {
@@ -62,26 +62,26 @@ pub fn cast_ray(
                 // Adjust t_max.x to the next X-oriented boundary crossing.
                 t_max.x += t_delta.x;
                 // Record the normal vector of the cube face we entered.
-                normal = Vector3::new(-step.x as f32, 0.0, 0.0);
+                normal = Vector3::new(-step.x, 0, 0);
             } else {
                 if t_max.z > radius { break }
                 voxel.z += step.z;
                 t_max.z += t_delta.z;
-                normal = Vector3::new(0.0, 0.0, -step.z as f32);
+                normal = Vector3::new(0, 0, -step.z);
             }
         } else {
             if t_max.y < t_max.z {
                 if t_max.y > radius { break }
                 voxel.y += step.y;
                 t_max.y += t_delta.y;
-                normal = Vector3::new(0.0, -step.y as f32, 0.0);
+                normal = Vector3::new(0, -step.y, 0);
             } else {
                 // Identical to the second case, repeated for simplicity in
                 // the conditionals.
                 if t_max.z > radius { break }
                 voxel.z += step.z;
                 t_max.z += t_delta.z;
-                normal = Vector3::new(0.0, 0.0, -step.z as f32);
+                normal = Vector3::new(0, 0, -step.z);
             }
         }
     }
