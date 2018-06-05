@@ -72,11 +72,11 @@ impl Peer {
         self.send_packet(target, data)
     }
 
-    /// Checks for incoming packets and network events.
-    /// This is combined into one event queue to make sure network events can be handled
+    /// Checks for incoming packets and network events, and sends out heartbeat messages.
+    /// Network events are combined into one event queue to make sure they can be handled
     /// sequentially, for example you can be sure a Message event won't be received before a
     /// NewPeer event.
-    pub fn poll(&mut self) -> EventsIter {
+    pub fn update(&mut self) -> EventsIter {
         let now = Instant::now();
 
         while let Some((source, data)) = self.worker.try_recv() {
