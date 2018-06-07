@@ -1,6 +1,6 @@
 use {
     std::{
-        collections::{VecDeque, HashMap},
+        collections::{HashMap},
         net::{SocketAddr},
         time::{Instant, Duration},
     },
@@ -16,7 +16,6 @@ pub struct Peer {
     protocol_id: u32,
     worker: PacketWorker,
 
-    queued_events: VecDeque<Event>,
     connections: HashMap<SocketAddr, PeerConnection>,
     next_packet_number: u16,
 }
@@ -34,7 +33,6 @@ impl Peer {
             protocol_id,
             worker,
 
-            queued_events: VecDeque::new(),
             connections: HashMap::new(),
             next_packet_number: 1,
         }
@@ -76,18 +74,18 @@ impl Peer {
     /// Network events are combined into one event queue to make sure they can be handled
     /// sequentially, for example you can be sure a Message event won't be received before a
     /// NewPeer event.
-    pub fn update(&mut self) -> EventsIter {
+    pub fn update(&mut self, events: &mut Vec<Event>) {
         let now = Instant::now();
 
         while let Some((source, data)) = self.worker.try_recv() {
             // The header extraction makes sure we're not being sent garbage
             if let Some((header, data)) = Header::extract(data, self.protocol_id) {
                 // Update when the last time we got a packet was
-                self.update_last_packet(source, now);
+                self.update_last_packet(source, now, events);
 
                 match header.class {
                     PacketClass::UnreliableMessage =>
-                        self.queued_events.push_back(Event::Message { source, data }),
+                        events.push(Event::Message { source, data }),
                     PacketClass::SequencedMessage => {
                         // Make sure we have enough remaining data for this header
                         if data.len() < SequencedHeader::START_OFFSET {
@@ -107,7 +105,7 @@ impl Peer {
                         }
                         connection.last_received_packet_number = sequenced_header.packet_number;
 
-                        self.queued_events.push_back(Event::Message { source, data });
+                        events.push(Event::Message { source, data });
                     },
                     _ => {},
                 }
@@ -115,15 +113,13 @@ impl Peer {
         }
 
         // Check if any connections have timed out
-        self.check_timeouts(now);
+        self.check_timeouts(now, events);
 
         // Check if we have to send heartbeats to any connection
         self.send_heartbeats(now);
-
-        EventsIter { queued_events: &mut self.queued_events }
     }
 
-    fn update_last_packet(&mut self, source: SocketAddr, now: Instant) {
+    fn update_last_packet(&mut self, source: SocketAddr, now: Instant, events: &mut Vec<Event>) {
         if self.connections.contains_key(&source) {
             // We currently have a connection with this peer, update the last time we saw it
             self.connections.get_mut(&source).unwrap().last_received = now;
@@ -134,17 +130,16 @@ impl Peer {
                 last_sent: now - Duration::new(10, 0),
                 last_received_packet_number: 0,
             });
-            self.queued_events.push_back(Event::NewPeer { address: source })
+            events.push(Event::NewPeer { address: source })
         }
     }
 
-    fn check_timeouts(&mut self, now: Instant) {
+    fn check_timeouts(&mut self, now: Instant, events: &mut Vec<Event>) {
         let timeout = Duration::new(5, 0);
-        let queued_events = &mut self.queued_events;
         self.connections.retain(|address, peer| {
             let timed_out = now.duration_since(peer.last_received) >= timeout;
             if timed_out {
-                queued_events.push_back(Event::PeerTimedOut { address: *address });
+                events.push(Event::PeerTimedOut { address: *address });
             }
             !timed_out
         });
@@ -202,18 +197,6 @@ pub enum Reliability {
     /// - May not arrive
     /// - Is dropped if arriving later than other messages
     Sequenced,
-}
-
-pub struct EventsIter<'a> {
-    queued_events: &'a mut VecDeque<Event>,
-}
-
-impl<'a> Iterator for EventsIter<'a> {
-    type Item = Event;
-
-    fn next(&mut self) -> Option<Event> {
-        self.queued_events.pop_front()
-    }
 }
 
 #[derive(Debug)]

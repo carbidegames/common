@@ -9,7 +9,7 @@ mod peer;
 mod worker;
 
 pub use {
-    peer::{Peer, Reliability, EventsIter, Event},
+    peer::{Peer, Reliability, Event},
 };
 
 #[derive(Debug)]
