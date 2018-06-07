@@ -2,15 +2,12 @@ use {
     cgmath::{Point2},
 
     grid::{Dim, Dim2, Range, IterRange},
-    Event,
 };
 
 #[derive(Deserialize, Serialize)]
 pub struct Grid<Cell, D: Dim> {
     cells: Vec<Cell>,
     size: D::Vector,
-
-    pub changed: Event,
 }
 
 impl<Cell: Default, D: Dim> Grid<Cell, D> {
@@ -22,8 +19,6 @@ impl<Cell: Default, D: Dim> Grid<Cell, D> {
         Grid {
             cells,
             size,
-
-            changed: Event::new(),
         }
     }
 }
