@@ -23,7 +23,7 @@ enum WorkerMessage {
 }
 
 pub struct PacketWorker {
-    worker_thread: JoinHandle<()>,
+    worker_thread: Option<JoinHandle<()>>,
     incoming: Receiver<PacketData>,
     outgoing: Sender<WorkerMessage>,
     outgoing_set: SetReadiness,
@@ -44,17 +44,17 @@ impl PacketWorker {
         // TODO: Clean shutdown, send a close message and wait for the worker thread to close
 
         PacketWorker {
-            worker_thread,
+            worker_thread: Some(worker_thread),
             incoming,
             outgoing,
             outgoing_set,
         }
     }
 
-    pub fn stop(self) {
+    pub fn stop(&mut self) {
         self.outgoing.send(WorkerMessage::Stop).unwrap();
         self.outgoing_set.set_readiness(Ready::readable()).unwrap();
-        self.worker_thread.join().unwrap();
+        self.worker_thread.take().unwrap().join().unwrap();
     }
 
     pub fn try_recv(&self) -> Option<(SocketAddr, Vec<u8>)> {

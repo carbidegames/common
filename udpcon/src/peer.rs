@@ -38,7 +38,7 @@ impl Peer {
         }
     }
 
-    pub fn stop(self) {
+    pub fn stop(mut self) {
         self.worker.stop()
     }
 
@@ -185,6 +185,12 @@ impl Peer {
 
         self.worker.send(target, data);
         Ok(())
+    }
+}
+
+impl Drop for Peer {
+    fn drop(&mut self) {
+        self.worker.stop();
     }
 }
 
